@@ -9,27 +9,34 @@
  * Things like initialization and tile appearance are defined in tile.h
  */
 
-// Instructions for finding neighbours relative to tile
-static int offsets_odd[NEIGHBOURING_TILES][2] = {
-    {0, 2}, {0, -2}, {0, 1}, {0, -1},
-    {1, -1}, {1, 1},
+// Instructions for finding neighbours relative to tile (even or odd)
+// Definiing the manually because I won't need more than the 18 surrounding tiles
+static int neighbours_offsets[TOTAL_NEIGHBOURS * 2][2] = {
+    // This is for odd tiles
+    {0, 2}, {0, -2}, {0, 1}, {0, -1}, {-1, -1}, {-1, 1},
+
+    {0, 2}, {0, -2}, {0, 1}, {0, -1}, {1, -1}, {1, 1},
 };
 
-static int offsets_even[NEIGHBOURING_TILES][2] = {
-    {0, 2}, {0, -2}, {0, 1}, {0, -1},
-    {-1, -1}, {-1, 1}
-};
+static int highlighted_offsets[TOTAL_HIGHLIGHTED * 2][2] = {
+    {0, 2}, {0, -2}, {0, 1}, {0, -1}, {-1, -1}, {-1, 1},
+    {0, 4}, {-1, -3}, {1, -2}, {1, 0}, {1, 2}, {-1, 3},
+    {0, -4}, {-1, -2}, {-1, 0}, {-1, 2}, {0, 3}, {0, -3},
 
-// I use macros at my own risk
-#define FOREACH_NEIGHBOUR for (int offset_i = 0; offset_i < NEIGHBOURING_TILES; offset_i++)
+    // For even tiles
+    {0, 2}, {0, -2}, {0, 1}, {0, -1}, {1, -1}, {1, 1},
+    {0, 4}, {0, -4}, {0, 3}, {0, -3}, {1, -2}, {-1, -2},
+    {1, 0}, {-1, 0}, {1, 2}, {-1, 2}, {1, 3}, {1, -3},
+ };
 
-#define GET_NEIGHBOUR_Y_FROM(x, y) y + (y % 2 == 0 ? offsets_even : offsets_odd)[offset_i][1]
-#define GET_NEIGHBOUR_X_FROM(x, y) x + (y % 2 == 0 ? offsets_even : offsets_odd)[offset_i][0]
-#define GET_NEIGHBOUR(x, y) &ctx.tilemap[GET_NEIGHBOUR_Y_FROM(y)][GET_NEIGHBOUR_X_FROM(x)] 
+// I know, this is really hacky but I'm ok with it for now
+#define FOREACH_OFFSET(tile_y, total_tiles, i) \
+    for (int i = ((tile_y % 2 == 0) ? 0 : total_tiles); i < ((tile_y % 2) + 1) * total_tiles; i++) \
 
 #define MAP_FOREACH(x, y) \
     for (int y = 0; y < TILEMAP_HEIGHT; y++) \
         for (int x = 0; x < TILEMAP_WIDTH; x++) \
+
 
 bool is_neighbouring_tile(int source_x, int source_y, int dest_x, int dest_y);
 void window_to_tile_position(int* tile_x, int* tile_y, int x, int y);

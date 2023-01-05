@@ -4,9 +4,12 @@
 bool is_neighbouring_tile(int source_x, int source_y, int dest_x, int dest_y)
 {
     // Check check every neighbours, they are only nine so it's fast
-    FOREACH_NEIGHBOUR
+    FOREACH_OFFSET(source_y, TOTAL_HIGHLIGHTED, i) 
     {
-        if (dest_x == GET_NEIGHBOUR_X_FROM(source_x, source_y) && dest_y == GET_NEIGHBOUR_Y_FROM(source_x, source_y))
+        int x = source_x + highlighted_offsets[i][0];
+        int y = source_y + highlighted_offsets[i][1];
+
+        if (dest_x == x && dest_y == y)
             return true;
     }
 
@@ -54,7 +57,3 @@ void assign_tile_position(int tile_x, int tile_y)
 
     tile->dest_rect = (SDL_Rect) {offset + tile_x * (TILE_WIDTH + 16), tile_y * TILE_HEIGHT / 2, TILE_WIDTH, TILE_HEIGHT};
 }
-
-
-
-

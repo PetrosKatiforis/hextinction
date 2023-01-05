@@ -40,8 +40,7 @@ void create_sprite(sprite_t* sprite, SDL_Texture* texture)
     sprite->texture = texture;
 
     // Making sure the origin is set to zero
-    sprite->transform.origin[0] = 0;
-    sprite->transform.origin[1] = 0;
+    memset(sprite->transform.origin, 0, 2 * sizeof(int));
 
     sprite->source_rect.x = sprite->source_rect.y = 0;
 

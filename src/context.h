@@ -17,18 +17,19 @@
 #define FRAMES_PER_SECOND 20
 #define TILEMAP_WIDTH 20
 #define TILEMAP_HEIGHT 34 
-#define TOTAL_CITIES 5
-#define MOVES_PER_TURN 5
+#define MOVES_PER_TURN 50
 #define TOTAL_PLAYERS 2
 #define UNITS_PER_TURN 10
 #define MAX_UNITS 100
+#define TOTAL_NEIGHBOURS 6
+#define TOTAL_HIGHLIGHTED 18
 
 #define FOREST_THRESHOLD 0.3
 #define LAND_THRESHOLD -0.3
 
-// Making it into a constant because it might change in the future
-// For instance, I might want to make the movement faster
-#define NEIGHBOURING_TILES 6
+#include "hex_utils.h"
+
+#define TOTAL_LABELS (TILEMAP_WIDTH / 5) * TILEMAP_HEIGHT
 
 static SDL_Color highlight_color = {255, 255, 255, 80};
 
@@ -67,10 +68,12 @@ typedef struct
     tile_t tilemap[TILEMAP_HEIGHT][TILEMAP_WIDTH];
 
     soldiers_t* selected_soldiers;
-    tile_t* highlighted_tiles[NEIGHBOURING_TILES];
+    audio_t soldiers_sfx;
+    tile_t* highlighted_tiles[TOTAL_HIGHLIGHTED];
 
     // player capitals + cities
-    label_t city_labels[TOTAL_CITIES + TOTAL_PLAYERS];
+    label_t city_labels[TOTAL_LABELS];
+    unsigned int total_cities;
 
     animated_sprite_t explosion;
     audio_t explosion_sfx;

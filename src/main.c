@@ -73,10 +73,10 @@ void create_tilemap()
         // Generating borders if they don't exist, plus a port
         bool has_created_port = false;
 
-        FOREACH_NEIGHBOUR
+        FOREACH_OFFSET(tile_y, TOTAL_NEIGHBOURS, j) 
         {
-            int x = GET_NEIGHBOUR_X_FROM(tile_x, tile_y);
-            int y = GET_NEIGHBOUR_Y_FROM(tile_x, tile_y);
+            int x = tile_x + neighbours_offsets[j][0];
+            int y = tile_y + neighbours_offsets[j][1];
 
             if (!is_valid_tile(x, y)) continue;
 
@@ -138,22 +138,30 @@ void next_turn()
 
 void generate_unclaimed_cities()
 {
-    for (int i = 0; i < TOTAL_CITIES; i++)
+    int current_x = 0;
+    int current_y = 0;
+
+    while (current_y < TILEMAP_HEIGHT - 3)
     {
-        int tile_x, tile_y;
-        tile_t* random_tile;
+        int offset_x = rand() % 2;
+        int offset_y = rand() % 3;
 
-        do
+        tile_t* tile = &ctx.tilemap[current_y + offset_y][current_x + offset_x];
+
+        // Spawn only in empty grass/forest tiles
+        if (tile->owner_id < 0 && tile->kind == TILE_GRASS || tile->kind == TILE_FOREST)
         {
-            tile_x = rand() % TILEMAP_WIDTH;
-            tile_y = rand() % TILEMAP_HEIGHT;
+            create_city(current_x + offset_x, current_y + offset_y);
+        }
 
-            random_tile = &ctx.tilemap[tile_y][tile_x];
-        
-        // Trying until it finds a suitable tile
-        } while (random_tile->city_index != -1 || random_tile->kind == TILE_WATER);
+        // This algorithm moves in "chunks" and just determines some offset for a more organic result
+        current_x += 3;
 
-        create_city(tile_x, tile_y);
+        if (current_x > TILEMAP_WIDTH - 2)
+        {
+            current_x = 0;
+            current_y += 5;
+        }
     }
 }
 
@@ -166,6 +174,7 @@ void initialize_context()
     ctx.tilemap_texture = load_texture("res/tilemap.png");
     ctx.border_texture = load_texture("res/border.png");
     ctx.soldiers_texture = load_texture("res/soldiers.png");
+    ctx.soldiers_sfx = load_audio("res/soldier_placement.wav");
 
     create_animated_sprite(&ctx.explosion, load_texture("res/explosion.png"), 9, 100);
     set_transform_scale(&ctx.explosion.sprite.transform, 2);
@@ -302,7 +311,7 @@ int main(int argc, char** argv)
         }
 
         // Drawing preview tiles
-        for (int i = 0; i < NEIGHBOURING_TILES; i++)
+        for (int i = 0; i < TOTAL_HIGHLIGHTED; i++)
         {
             tile_t* tile = ctx.highlighted_tiles[i];
 
@@ -315,7 +324,7 @@ int main(int argc, char** argv)
         }
 
         // Rendering city labels
-        for (int i = 0; i < TOTAL_CITIES + TOTAL_PLAYERS; i++)
+        for (int i = 0; i < ctx.total_cities; i++)
             render_sprite(&ctx.city_labels[i].sprite, ctx.game.renderer);
 
         if (ctx.explosion.is_active)

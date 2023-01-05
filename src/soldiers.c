@@ -52,10 +52,10 @@ void update_soldiers_texture(soldiers_t* soldiers)
 void capture_empty_neighbours(soldiers_t* soldiers, int tile_x, int tile_y)
 {
     // Capture empty neighbouring tiles
-    FOREACH_NEIGHBOUR
+    FOREACH_OFFSET(tile_y, TOTAL_NEIGHBOURS, i) 
     {
-        int x = GET_NEIGHBOUR_X_FROM(tile_x, tile_y);
-        int y = GET_NEIGHBOUR_Y_FROM(tile_x, tile_y);
+        int x = tile_x + neighbours_offsets[i][0];
+        int y = tile_y + neighbours_offsets[i][1];
 
         if (!is_valid_tile(x, y)) continue;
 
@@ -86,6 +86,8 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         place_soldiers(soldiers, tile);
         capture_empty_neighbours(soldiers, tile_x, tile_y);
     
+        play_audio(ctx.soldiers_sfx);
+
         if (will_change_surface)
             update_soldiers_texture(soldiers);
 
@@ -182,30 +184,33 @@ void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     ctx.selected_soldiers = soldiers;
 
     // Highlighting neighbour tiles
-    memset(&ctx.highlighted_tiles, 0, NEIGHBOURING_TILES * sizeof(tile_t*));
+    memset(&ctx.highlighted_tiles, 0, TOTAL_HIGHLIGHTED * sizeof(tile_t*));
 
     tile_t* source = &ctx.tilemap[tile_y][tile_x];
-    bool can_move_to_sea = soldiers->current_tile->kind != TILE_WATER || soldiers->current_tile->kind == TILE_WATER;
+    bool can_move_to_sea = soldiers->current_tile->kind == TILE_WATER || soldiers->current_tile->kind == TILE_PORT;
 
-    FOREACH_NEIGHBOUR
+    // Highlighting neighbours
+    unsigned int total_highlighted = 0;
+
+    FOREACH_OFFSET(tile_y, TOTAL_HIGHLIGHTED, i)
     {
-        int x = GET_NEIGHBOUR_X_FROM(tile_x, tile_y);
-        int y = GET_NEIGHBOUR_Y_FROM(tile_x, tile_y);
+        int x = tile_x + highlighted_offsets[i][0];
+        int y = tile_y + highlighted_offsets[i][1];
 
-        if (!is_valid_tile(x, y)) continue;
+        if (is_valid_tile(x, y))
+        {
+            tile_t* tile = &ctx.tilemap[y][x];
 
-        tile_t* tile = &ctx.tilemap[y][x];
-
-        // offset_i is coming from the macro! Bad design...
-        if (tile->kind != TILE_WATER || can_move_to_sea)
-            ctx.highlighted_tiles[offset_i] = &ctx.tilemap[y][x];
+            if (tile->kind != TILE_WATER || can_move_to_sea)
+                ctx.highlighted_tiles[total_highlighted++] = &ctx.tilemap[y][x];
+        }
     }
 }
 
 void clear_selected_soldiers()
 {
     // Clearing highlighted tiles
-    memset(&ctx.highlighted_tiles, 0, NEIGHBOURING_TILES * sizeof(tile_t*));
+    memset(&ctx.highlighted_tiles, 0, TOTAL_HIGHLIGHTED * sizeof(tile_t*));
     ctx.selected_soldiers = NULL;
 }
 

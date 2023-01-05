@@ -37,7 +37,7 @@ void create_city(int tile_x, int tile_y)
     set_tile_kind(tile_x, tile_y, TILE_CITY);
             
     // Creates the text label, loops through the pool instead of a dynamic array because it's small
-    for (int i = 0; i < TOTAL_PLAYERS + TOTAL_CITIES; i++)
+    for (int i = 0; i < TOTAL_LABELS; i++)
     {
         label_t* label = &ctx.city_labels[i];
 
@@ -50,6 +50,8 @@ void create_city(int tile_x, int tile_y)
 
         break;
     }
+
+    ctx.total_cities++;
 }
 
 
