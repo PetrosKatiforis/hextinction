@@ -111,6 +111,11 @@ void create_label(label_t* label, SDL_Renderer* renderer, TTF_Font* font, const 
     set_label_content(label, renderer, content);
 }
 
+void destroy_label(label_t* label)
+{
+    SDL_DestroyTexture(label->sprite.texture);
+}
+
 void update_label_texture(label_t* label, SDL_Renderer* renderer)
 {
     SDL_DestroyTexture(label->sprite.texture);
@@ -125,7 +130,7 @@ void update_label_texture(label_t* label, SDL_Renderer* renderer)
 // Warning: the user must reset the origin if they want the text to be centered again, because the dimensions will change!
 void set_label_content(label_t* label, SDL_Renderer* renderer, const char* content)
 {
-    label->content = content;
+    strcpy(label->content, content);
     update_label_texture(label, renderer);
 }
 

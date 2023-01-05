@@ -57,6 +57,9 @@ void play_animated_sprite(animated_sprite_t* anim_sprite);
 void render_animated_sprite(animated_sprite_t* anim_sprite, SDL_Renderer* renderer);
 
 
+// TODO: Make this a bit more dynamic
+#define MAX_LABEL_LEN 70
+
 // Labels will be defined as sprites as well
 typedef struct
 {
@@ -64,11 +67,12 @@ typedef struct
 
     TTF_Font* font;
     SDL_Color color;
-    const char* content;
+    char content[MAX_LABEL_LEN];
 } label_t;
 
 void create_label(label_t* label, SDL_Renderer* renderer, TTF_Font* font, const char* content);
 void set_label_content(label_t* label, SDL_Renderer* renderer, const char* content);
 void set_label_color(label_t* label, SDL_Renderer* renderer, SDL_Color color);
+void destroy_label(label_t* label);
 
 #endif

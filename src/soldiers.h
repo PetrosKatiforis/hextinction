@@ -13,6 +13,7 @@ typedef struct
     SDL_Rect dest_rect;
 
     bool is_walkable;
+    bool is_port;
 
     // Index of city_names, left -1 if the tile is not a city
     int city_index;
@@ -26,6 +27,9 @@ typedef struct soldiers_t
 {
     unsigned int units;
     label_t units_label;
+
+    // Used to determine soldiers texture
+    SDL_Rect source_rect;
 
     tile_t* current_tile;
 } soldiers_t;
@@ -43,5 +47,6 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y);
 void select_soldiers(soldiers_t* soldiers);
 
 void clear_selected_soldiers();
+void destroy_soldiers(soldiers_t* soldiers);
 
 #endif

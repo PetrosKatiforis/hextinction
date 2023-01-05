@@ -51,7 +51,7 @@ typedef struct
 
     SDL_Texture* tilemap_texture;
     SDL_Texture* border_texture;
-    SDL_Texture* soldier_texture;
+    SDL_Texture* soldiers_texture;
     tile_t tilemap[TILEMAP_HEIGHT][TILEMAP_WIDTH];
 
     soldiers_t* selected_soldiers;

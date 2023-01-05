@@ -12,17 +12,31 @@
 #define FRAMES_PER_SECOND 60
 #define FRAME_DELAY 1000 / FRAMES_PER_SECOND
 
+void assign_tile_position(int tile_x, int tile_y)
+{
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+
+    // Some magic numbers here, I didn't want to find a precise formula for it so I'm just doing it manually with trial and error
+    int offset = (tile_y % 2 == 1) ? 25 : 0;
+
+    tile->dest_rect = (SDL_Rect) {offset + tile_x * (TILE_WIDTH + 16), tile_y * TILE_HEIGHT / 2, TILE_WIDTH, TILE_HEIGHT};
+}
+
 // Texture index refers to x position in tilemap texture
 void create_tile(int x, int y, int texture_index)
 {
     tile_t* tile = &ctx.tilemap[y][x];
 
-    // Some magic numbers here, I didn't want to find a precise formula for it so I'm just doing it manually with trial and error
-    int offset = (y % 2 == 1) ? 25 : 0;
+    // Make it likely that a port will spawn if it's a coast
+    if (texture_index == 2 && y < TILEMAP_HEIGHT - 2 && (rand() % 10 == 0))
+    {
+        tile->is_port = true;
+        texture_index = 4;
+    }
 
     // Picking the tile from the tilemap texture and saving its position
     tile->source_rect = (SDL_Rect) {texture_index * TILE_WIDTH, 0, TILE_WIDTH, TILE_HEIGHT};
-    tile->dest_rect = (SDL_Rect) {offset + x * (TILE_WIDTH + 16), y * TILE_HEIGHT / 2, TILE_WIDTH, TILE_HEIGHT};
+    assign_tile_position(x, y);
 
     tile->is_walkable = true;
     tile->city_index = -1;
@@ -71,6 +85,11 @@ void create_tilemap()
                 bool is_coast = open_simplex_noise2(ctx.noise_context, j / 8.0, (i + 2) / 8.0) < -0.3;
 
                 create_tile(j, i, is_coast ? 2 : is_forest ? 1 : 0);
+            }
+            else
+            {
+                // Make sure that water tiles have a dest_rect position too
+                assign_tile_position(j, i);
             }
         }
     }
@@ -134,7 +153,7 @@ void initialize_context()
     // Loading textures and audio
     ctx.tilemap_texture = load_texture("res/tilemap.png");
     ctx.border_texture = load_texture("res/border.png");
-    ctx.soldier_texture = load_texture("res/soldier.png");
+    ctx.soldiers_texture = load_texture("res/soldiers.png");
 
     create_animated_sprite(&ctx.explosion, load_texture("res/explosion.png"), 9, 100);
     set_transform_scale(&ctx.explosion.sprite.transform, 2);
@@ -173,8 +192,6 @@ int main(int argc, char** argv)
 
                 tile_t* tile = &ctx.tilemap[tile_y][tile_x];
                 
-                if (!tile->is_walkable) break;
-
                 if (!ctx.selected_soldiers)
                 {
                     if (tile->soldiers) select_soldiers(tile->soldiers);
@@ -219,16 +236,19 @@ int main(int argc, char** argv)
             {
                 tile_t* tile = &ctx.tilemap[j][i];
 
-                SDL_RenderCopy(ctx.game.renderer, ctx.tilemap_texture, &tile->source_rect, &tile->dest_rect);
-
-                // Render the border if its conquered on top of the tile
-                if (tile->owner_id >= 0)
+                if (tile->is_walkable)
                 {
-                    SDL_Color* color = &player_colors[tile->owner_id];
-                    
-                    SDL_SetTextureColorMod(ctx.border_texture, color->r, color->g, color->b);
-                    SDL_SetTextureAlphaMod(ctx.border_texture, color->a);
-                    SDL_RenderCopy(ctx.game.renderer, ctx.border_texture, NULL, &tile->dest_rect);
+                    SDL_RenderCopy(ctx.game.renderer, ctx.tilemap_texture, &tile->source_rect, &tile->dest_rect);
+
+                    // Render the border if its conquered on top of the tile
+                    if (tile->owner_id >= 0)
+                    {
+                        SDL_Color* color = &player_colors[tile->owner_id];
+                        
+                        SDL_SetTextureColorMod(ctx.border_texture, color->r, color->g, color->b);
+                        SDL_SetTextureAlphaMod(ctx.border_texture, color->a);
+                        SDL_RenderCopy(ctx.game.renderer, ctx.border_texture, NULL, &tile->dest_rect);
+                    }
                 }
             }
         }
@@ -242,7 +262,7 @@ int main(int argc, char** argv)
 
                 if (tile->soldiers)
                 {
-                    SDL_RenderCopy(ctx.game.renderer, ctx.soldier_texture, NULL, &tile->dest_rect);
+                    SDL_RenderCopy(ctx.game.renderer, ctx.soldiers_texture, &tile->soldiers->source_rect, &tile->dest_rect);
                     render_sprite(&tile->soldiers->units_label.sprite, ctx.game.renderer);
                 }
             }
