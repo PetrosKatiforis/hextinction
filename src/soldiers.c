@@ -39,7 +39,7 @@ void activate_explosion(int pos_x, int pos_y)
 void update_soldiers_texture(soldiers_t* soldiers)
 {
     // If it's sea, pick a ship texture
-    if (!soldiers->current_tile->is_walkable)
+    if (soldiers->current_tile->kind == TILE_WATER)
     {
         soldiers->source_rect.x = (soldiers->current_tile->owner_id + 1) * TILE_WIDTH;
     }
@@ -47,47 +47,6 @@ void update_soldiers_texture(soldiers_t* soldiers)
     {
         soldiers->source_rect.x = 0;
     }
-}
-
-void next_turn()
-{
-    // Spawn soldiers to every conquered city
-    if (ctx.current_player_id >= 0)
-    {
-        for (int i = 0; i < TILEMAP_HEIGHT; i++)
-        {
-            for (int j = 0; j < TILEMAP_WIDTH; j++)
-            {
-                tile_t* tile = &ctx.tilemap[i][j];
-
-                // Spawns if it's a city owned by the player
-                if (tile->owner_id != ctx.current_player_id || tile->city_index < 0) continue;
-
-                if (!tile->soldiers)
-                    create_soldiers(j, i);
-
-                else if (tile->soldiers->units != MAX_UNITS)
-                    set_soldier_units(tile->soldiers, tile->soldiers->units + 10);
-            }
-        }
-    }
-
-    ctx.current_player_id++;
-    ctx.remaining_moves = MOVES_PER_TURN;
-
-    if (ctx.current_player_id > TOTAL_PLAYERS - 1)
-        ctx.current_player_id = 0;
-
-    // Skip if the player is dead
-    if (ctx.is_player_dead[ctx.current_player_id]) return next_turn();
-
-    // Positioning turn arrow
-    int capital_position[2];
-    memcpy(capital_position, &capital_positions[ctx.current_player_id], 2 * sizeof(int));
-
-    tile_t* capital = &ctx.tilemap[capital_position[1]][capital_position[0]];
-
-    set_transform_position(&ctx.turn_arrow.transform, capital->dest_rect.x, capital->dest_rect.y - TILE_HEIGHT);
 }
 
 void capture_empty_neighbours(soldiers_t* soldiers, int tile_x, int tile_y)
@@ -113,11 +72,11 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     int sender_id = soldiers->current_tile->owner_id;
 
     // Check if the soldiers are trying to move to a sea tile without being on a port when on land
-    if (!tile->is_walkable && (!soldiers->current_tile->is_port && soldiers->current_tile->is_walkable))
+    if (tile->kind == TILE_WATER && (soldiers->current_tile->kind != TILE_PORT && soldiers->current_tile->kind != TILE_WATER))
         return;
 
-    // Stores if the soldiers go from ship to land or from land to ship so it can update the texture later
-    bool will_change_surface = (tile->is_walkable != soldiers->current_tile->is_walkable);
+    // Stores if the soldiers go from ship to land or from land to ship so it can update the texture later (XOR operator)
+    bool will_change_surface = (tile->kind == TILE_WATER) ^ (soldiers->current_tile->kind == TILE_WATER);
 
     if (!tile->soldiers)
     {
@@ -130,7 +89,8 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         if (will_change_surface)
             update_soldiers_texture(soldiers);
 
-        goto process_turn;
+        ctx.remaining_moves--;
+        return;
     }
 
     // Check if it's just a move between soldiers of the same player
@@ -151,7 +111,8 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
             set_soldier_units(soldiers, new_units - MAX_UNITS);
         }
 
-        goto process_turn;
+        ctx.remaining_moves--;
+        return;
     }
 
     if (tile->soldiers->units >= soldiers->units)
@@ -196,13 +157,7 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     }
 
     activate_explosion(tile->dest_rect.x, tile->dest_rect.y);
-
-process_turn:
-    // Decrease remaining moves and process turn
     ctx.remaining_moves--;
-
-    if (ctx.remaining_moves == 0)
-        next_turn();
 }
 
 void set_soldier_units(soldiers_t* soldiers, unsigned int units) 
@@ -230,7 +185,7 @@ void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     memset(&ctx.highlighted_tiles, 0, NEIGHBOURING_TILES * sizeof(tile_t*));
 
     tile_t* source = &ctx.tilemap[tile_y][tile_x];
-    bool can_move_to_sea = !soldiers->current_tile->is_walkable || soldiers->current_tile->is_port;
+    bool can_move_to_sea = soldiers->current_tile->kind != TILE_WATER || soldiers->current_tile->kind == TILE_WATER;
 
     FOREACH_NEIGHBOUR
     {
@@ -241,8 +196,8 @@ void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 
         tile_t* tile = &ctx.tilemap[y][x];
 
-        // This is coming from the macro! Bad design...
-        if (tile->is_walkable || can_move_to_sea)
+        // offset_i is coming from the macro! Bad design...
+        if (tile->kind != TILE_WATER || can_move_to_sea)
             ctx.highlighted_tiles[offset_i] = &ctx.tilemap[y][x];
     }
 }

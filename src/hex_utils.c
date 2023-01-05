@@ -39,3 +39,22 @@ bool is_valid_tile(int tile_x, int tile_y)
     return tile_x >= 0 && tile_x < TILEMAP_WIDTH && tile_y >= 0 && tile_y < TILEMAP_HEIGHT;
 }
 
+double get_noise_value(int tile_x, int tile_y)
+{
+    return open_simplex_noise2(ctx.noise_context, tile_x / 8.0, tile_y / 8.0);
+}
+
+// Determines position based on grid coordinates
+void assign_tile_position(int tile_x, int tile_y)
+{
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+
+    // Some magic numbers here, I didn't want to find a precise formula for it so I'm just doing it manually with trial and error
+    int offset = (tile_y % 2 == 1) ? 25 : 0;
+
+    tile->dest_rect = (SDL_Rect) {offset + tile_x * (TILE_WIDTH + 16), tile_y * TILE_HEIGHT / 2, TILE_WIDTH, TILE_HEIGHT};
+}
+
+
+
+

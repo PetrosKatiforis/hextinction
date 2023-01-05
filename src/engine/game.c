@@ -23,9 +23,6 @@ void create_game(game_t* game, const char* title, unsigned int width, unsigned i
     initialize_sdl_components();
     puts("SDL has been initialized. Now trying to create the window and the renderer.");
 
-    // Creating some randomness
-    srand(time(NULL));
-
     // Creating the window at the center of the screen by default
     game->window = SDL_CreateWindow(title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_SHOWN);
     game->renderer = SDL_CreateRenderer(game->window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_TARGETTEXTURE);

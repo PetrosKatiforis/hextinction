@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include "soldiers.h"
+#include "tile.h"
 #include "engine/game.h"
 #include "engine/sprite.h"
 #include "engine/audio.h"
