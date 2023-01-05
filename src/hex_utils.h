@@ -4,18 +4,18 @@
 #include "context.h"
 
 // Instructions for finding neighbours relative to tile
-static int offsets_odd[6][2] = {
+static int offsets_odd[NEIGHBOURING_TILES][2] = {
     {0, 2}, {0, -2}, {0, 1}, {0, -1},
     {1, -1}, {1, 1},
 };
 
-static int offsets_even[6][2] = {
+static int offsets_even[NEIGHBOURING_TILES][2] = {
     {0, 2}, {0, -2}, {0, 1}, {0, -1},
     {-1, -1}, {-1, 1}
 };
 
 // I use macros at my own risk
-#define FOREACH_NEIGHBOUR for (int offset_i = 0; offset_i < 6; offset_i++)
+#define FOREACH_NEIGHBOUR for (int offset_i = 0; offset_i < NEIGHBOURING_TILES; offset_i++)
 
 #define GET_NEIGHBOUR_Y_FROM(x, y) y + (y % 2 == 0 ? offsets_even : offsets_odd)[offset_i][1]
 #define GET_NEIGHBOUR_X_FROM(x, y) x + (y % 2 == 0 ? offsets_even : offsets_odd)[offset_i][0]

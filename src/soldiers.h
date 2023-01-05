@@ -44,7 +44,7 @@ void place_soldiers(soldiers_t* soldiers, tile_t* tile);
 void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y);
 
 // Includes validation too
-void select_soldiers(soldiers_t* soldiers);
+void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y);
 
 void clear_selected_soldiers();
 void destroy_soldiers(soldiers_t* soldiers);

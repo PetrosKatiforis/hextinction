@@ -9,7 +9,6 @@
 #include "engine/utils.h"
 #include "libs/open-simplex/noise.h"
 
-#define FRAMES_PER_SECOND 60
 #define FRAME_DELAY 1000 / FRAMES_PER_SECOND
 
 void assign_tile_position(int tile_x, int tile_y)
@@ -194,7 +193,7 @@ int main(int argc, char** argv)
                 
                 if (!ctx.selected_soldiers)
                 {
-                    if (tile->soldiers) select_soldiers(tile->soldiers);
+                    if (tile->soldiers) select_soldiers(tile->soldiers, tile_x, tile_y);
                 }
                 else if (tile->soldiers == ctx.selected_soldiers)
                 {
@@ -218,7 +217,7 @@ int main(int argc, char** argv)
                     set_label_color(&ctx.selected_soldiers->units_label, ctx.game.renderer, (SDL_Color) {255, 255, 255, 255});
                     move_soldiers(ctx.selected_soldiers, tile_x, tile_y);
 
-                    ctx.selected_soldiers = NULL;
+                    clear_selected_soldiers();
                 }
             }
        }
@@ -265,6 +264,19 @@ int main(int argc, char** argv)
                     SDL_RenderCopy(ctx.game.renderer, ctx.soldiers_texture, &tile->soldiers->source_rect, &tile->dest_rect);
                     render_sprite(&tile->soldiers->units_label.sprite, ctx.game.renderer);
                 }
+            }
+        }
+
+        // Drawing preview tiles
+        for (int i = 0; i < NEIGHBOURING_TILES; i++)
+        {
+            tile_t* tile = ctx.highlighted_tiles[i];
+
+            if (tile)
+            {
+                SDL_SetTextureColorMod(ctx.border_texture, highlight_color.r, highlight_color.g, highlight_color.b);
+                SDL_SetTextureAlphaMod(ctx.border_texture, highlight_color.a);
+                SDL_RenderCopy(ctx.game.renderer, ctx.border_texture, NULL, &tile->dest_rect);
             }
         }
 

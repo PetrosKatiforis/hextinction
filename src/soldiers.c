@@ -29,7 +29,11 @@ soldiers_t* create_soldiers(int tile_x, int tile_y)
 void activate_explosion(int pos_x, int pos_y)
 {
     set_transform_position(&ctx.explosion.sprite.transform, pos_x - 16, pos_y - 16);
-    play_animated_sprite(&ctx.explosion);
+    play_animated_sprite(&ctx.explosion);// Making it into a constant because it might change in the future
+// For instance, I might want to make the movement faster
+#define NEIGHBOURING_TILES 6
+
+
 
     play_audio(ctx.explosion_sfx);
 }
@@ -130,17 +134,34 @@ void set_soldier_units(soldiers_t* soldiers, unsigned int units)
     update_soldiers_texture(soldiers);
 }
 
-void select_soldiers(soldiers_t* soldiers)
+void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 {
     // Check if the player owns the soldiers and then update the UI 
     if (soldiers->current_tile->owner_id != 0) return;
 
     ctx.selected_soldiers = soldiers;
     set_label_color(&soldiers->units_label, ctx.game.renderer, selected_soldiers_color);
+
+    // Highlighting neighbour tiles
+    memset(&ctx.highlighted_tiles, 0, NEIGHBOURING_TILES * sizeof(tile_t*));
+
+    FOREACH_NEIGHBOUR
+    {
+        int x = GET_NEIGHBOUR_X_FROM(tile_x, tile_y);
+        int y = GET_NEIGHBOUR_Y_FROM(tile_x, tile_y);
+
+        if (!is_valid_tile(x, y)) continue;
+
+        // This is coming from the macro! Bad design...
+        ctx.highlighted_tiles[offset_i] = &ctx.tilemap[y][x];
+    }
 }
 
 void clear_selected_soldiers()
 {
+    // Clearing highlighted tiles
+    memset(&ctx.highlighted_tiles, 0, NEIGHBOURING_TILES * sizeof(tile_t*));
+
     set_label_color(&ctx.selected_soldiers->units_label, ctx.game.renderer, (SDL_Color) {255, 255, 255, 255});
     ctx.selected_soldiers = NULL;
 }
