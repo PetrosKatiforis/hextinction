@@ -13,4 +13,8 @@ void assert_panic(bool condition, const char* message)
     }
 }
 
-
+bool chance_one_in(int max)
+{
+    // 0 is equally likely
+    return rand() % max == 0;
+}

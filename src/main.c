@@ -32,7 +32,7 @@ void create_tilemap()
 
         if (value > LAND_THRESHOLD && bottom < LAND_THRESHOLD)
         {
-            create_tile(x, y, TILE_COAST);
+            create_tile(x, y, chance_one_in(8) ? TILE_PORT : TILE_COAST);
         }
         // Forests
         else if (value > FOREST_THRESHOLD)
@@ -42,9 +42,7 @@ void create_tilemap()
         // Threshold for dirt placement
         else if (value > LAND_THRESHOLD)
         {
-            bool is_forest = rand() % 8 == 0;
-
-            create_tile(x, y, is_forest ? TILE_FOREST : TILE_GRASS);
+            create_tile(x, y, chance_one_in(8) ? TILE_FOREST : TILE_GRASS);
         }
         else
         {

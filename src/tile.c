@@ -9,12 +9,6 @@ void create_tile(int tile_x, int tile_y, tile_kind_e kind)
 {
     tile_t* tile = &ctx.tilemap[tile_y][tile_x];
 
-    // Make it likely that a port will spawn if it's a coast
-    if (kind == TILE_COAST && tile_y < TILEMAP_HEIGHT - 2 && (rand() % 7 == 0))
-    {
-        tile->kind = TILE_PORT;
-    }
-
     // Picking the tile from the tilemap texture and saving its position
     set_tile_kind(tile_x, tile_y, kind);
     assign_tile_position(tile_x, tile_y);
