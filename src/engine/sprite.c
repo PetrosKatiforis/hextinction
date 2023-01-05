@@ -103,12 +103,10 @@ void render_animated_sprite(animated_sprite_t* anim_sprite, SDL_Renderer* render
 
 
 // Text-specific methods
-void create_label(label_t* label, SDL_Renderer* renderer, TTF_Font* font, const char* content)
+void create_label(label_t* label, TTF_Font* font)
 {
     label->font = font;
     label->color = (SDL_Color) {255, 255, 255, 255};
-
-    set_label_content(label, renderer, content);
 }
 
 void destroy_label(label_t* label)

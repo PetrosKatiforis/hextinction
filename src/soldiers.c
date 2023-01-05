@@ -1,4 +1,5 @@
 #include "soldiers.h"
+#include "engine/utils.h"
 #include "context.h"
 #include "hex_utils.h"
 
@@ -15,12 +16,13 @@ soldiers_t* create_soldiers(int tile_x, int tile_y)
 {
     soldiers_t* soldiers = malloc(sizeof(soldiers_t));
 
-    // Default soldier units
-    soldiers->units = 10;
-    soldiers->source_rect = (SDL_Rect) {0, 0, TILE_WIDTH, TILE_HEIGHT};
-
-    create_label(&soldiers->units_label, ctx.game.renderer, ctx.font, "10");
     place_soldiers(soldiers, &ctx.tilemap[tile_y][tile_x]);
+
+    // Default soldier units
+    create_label(&soldiers->units_label, ctx.font);
+    set_soldier_units(soldiers, UNITS_PER_TURN);
+
+    soldiers->source_rect = (SDL_Rect) {0, 0, TILE_WIDTH, TILE_HEIGHT};
 
     return soldiers;
 }
@@ -30,11 +32,7 @@ void activate_explosion(int pos_x, int pos_y)
 {
     set_transform_position(&ctx.explosion.sprite.transform, pos_x - 16, pos_y - 16);
     play_animated_sprite(&ctx.explosion);// Making it into a constant because it might change in the future
-// For instance, I might want to make the movement faster
-#define NEIGHBOURING_TILES 6
-
-
-
+    
     play_audio(ctx.explosion_sfx);
 }
 
@@ -51,6 +49,47 @@ void update_soldiers_texture(soldiers_t* soldiers)
     }
 }
 
+void next_turn()
+{
+    // Spawn soldiers to every conquered city
+    if (ctx.current_player_id >= 0)
+    {
+        for (int i = 0; i < TILEMAP_HEIGHT; i++)
+        {
+            for (int j = 0; j < TILEMAP_WIDTH; j++)
+            {
+                tile_t* tile = &ctx.tilemap[i][j];
+
+                // Spawns if it's a city owned by the player
+                if (tile->owner_id != ctx.current_player_id || tile->city_index < 0) continue;
+
+                if (!tile->soldiers)
+                    create_soldiers(j, i);
+
+                else if (tile->soldiers->units != MAX_UNITS)
+                    set_soldier_units(tile->soldiers, tile->soldiers->units + 10);
+            }
+        }
+    }
+
+    ctx.current_player_id++;
+    ctx.remaining_moves = MOVES_PER_TURN;
+
+    if (ctx.current_player_id > TOTAL_PLAYERS - 1)
+        ctx.current_player_id = 0;
+
+    // Skip if the player is dead
+    if (ctx.is_player_dead[ctx.current_player_id]) return next_turn();
+
+    // Positioning turn arrow
+    int capital_position[2];
+    memcpy(capital_position, &capital_positions[ctx.current_player_id], 2 * sizeof(int));
+
+    tile_t* capital = &ctx.tilemap[capital_position[1]][capital_position[0]];
+
+    set_transform_position(&ctx.turn_arrow.transform, capital->dest_rect.x, capital->dest_rect.y - TILE_HEIGHT);
+}
+
 void capture_empty_neighbours(soldiers_t* soldiers, int tile_x, int tile_y)
 {
     // Capture empty neighbouring tiles
@@ -63,7 +102,7 @@ void capture_empty_neighbours(soldiers_t* soldiers, int tile_x, int tile_y)
 
         tile_t* tile = &ctx.tilemap[y][x];
 
-        if (!tile->soldiers)
+        if (!tile->soldiers && tile->city_index < 0)
             tile->owner_id = soldiers->current_tile->owner_id;
     }
 }
@@ -91,7 +130,28 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         if (will_change_surface)
             update_soldiers_texture(soldiers);
 
-        return;
+        goto process_turn;
+    }
+
+    // Check if it's just a move between soldiers of the same player
+    if (tile->owner_id == sender_id)
+    {
+        if (tile->soldiers->units == MAX_UNITS) return;
+
+        unsigned int new_units = tile->soldiers->units + soldiers->units;
+
+        if (new_units < MAX_UNITS)
+        {
+            set_soldier_units(tile->soldiers, new_units);
+            destroy_soldiers(soldiers);
+        }
+        else
+        {
+            set_soldier_units(tile->soldiers, MAX_UNITS);
+            set_soldier_units(soldiers, new_units - MAX_UNITS);
+        }
+
+        goto process_turn;
     }
 
     if (tile->soldiers->units >= soldiers->units)
@@ -116,14 +176,39 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         set_soldier_units(tile->soldiers, remaining_units);
         capture_empty_neighbours(soldiers, tile_x, tile_y);
     
-        tile->owner_id = sender_id;
+        // Check if it was a capital
+        if (tile->is_capital)
+        {
+            tile->is_capital = false;
+            ctx.is_player_dead[tile->owner_id] = true;
+
+            for (int i = 0; i < TILEMAP_WIDTH; i++)
+            {
+                for (int j = 0; j < TILEMAP_HEIGHT; j++)
+                {
+                    tile_t* other_tile = &ctx.tilemap[i][j];
+
+                    if (other_tile->owner_id == tile->owner_id)
+                        other_tile->owner_id = sender_id; 
+                }
+            }
+        }
     }
 
     activate_explosion(tile->dest_rect.x, tile->dest_rect.y);
+
+process_turn:
+    // Decrease remaining moves and process turn
+    ctx.remaining_moves--;
+
+    if (ctx.remaining_moves == 0)
+        next_turn();
 }
 
 void set_soldier_units(soldiers_t* soldiers, unsigned int units) 
 {
+    units = MIN(MAX_UNITS, units);
+
     // Converting unsigned int to a c string
     char new_content[10];
     sprintf(new_content, "%u", units);
@@ -137,13 +222,15 @@ void set_soldier_units(soldiers_t* soldiers, unsigned int units)
 void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 {
     // Check if the player owns the soldiers and then update the UI 
-    if (soldiers->current_tile->owner_id != 0) return;
+    if (soldiers->current_tile->owner_id != ctx.current_player_id) return;
 
     ctx.selected_soldiers = soldiers;
-    set_label_color(&soldiers->units_label, ctx.game.renderer, selected_soldiers_color);
 
     // Highlighting neighbour tiles
     memset(&ctx.highlighted_tiles, 0, NEIGHBOURING_TILES * sizeof(tile_t*));
+
+    tile_t* source = &ctx.tilemap[tile_y][tile_x];
+    bool can_move_to_sea = !soldiers->current_tile->is_walkable || soldiers->current_tile->is_port;
 
     FOREACH_NEIGHBOUR
     {
@@ -152,8 +239,11 @@ void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 
         if (!is_valid_tile(x, y)) continue;
 
+        tile_t* tile = &ctx.tilemap[y][x];
+
         // This is coming from the macro! Bad design...
-        ctx.highlighted_tiles[offset_i] = &ctx.tilemap[y][x];
+        if (tile->is_walkable || can_move_to_sea)
+            ctx.highlighted_tiles[offset_i] = &ctx.tilemap[y][x];
     }
 }
 
@@ -161,8 +251,6 @@ void clear_selected_soldiers()
 {
     // Clearing highlighted tiles
     memset(&ctx.highlighted_tiles, 0, NEIGHBOURING_TILES * sizeof(tile_t*));
-
-    set_label_color(&ctx.selected_soldiers->units_label, ctx.game.renderer, (SDL_Color) {255, 255, 255, 255});
     ctx.selected_soldiers = NULL;
 }
 

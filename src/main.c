@@ -27,7 +27,7 @@ void create_tile(int x, int y, int texture_index)
     tile_t* tile = &ctx.tilemap[y][x];
 
     // Make it likely that a port will spawn if it's a coast
-    if (texture_index == 2 && y < TILEMAP_HEIGHT - 2 && (rand() % 10 == 0))
+    if (texture_index == 2 && y < TILEMAP_HEIGHT - 2 && (rand() % 7 == 0))
     {
         tile->is_port = true;
         texture_index = 4;
@@ -56,11 +56,17 @@ void create_city(tile_t* tile)
         // Ignore it if it's already used
         if (label->sprite.texture != NULL) continue;
 
-        create_label(label, ctx.game.renderer, ctx.font, city_names[tile->city_index]);
+        create_label(label, ctx.font);
+        set_label_content(label, ctx.game.renderer, city_names[tile->city_index]);
         set_transform_position(&label->sprite.transform, tile->dest_rect.x + 40, tile->dest_rect.y + 4);
 
         break;
     }
+}
+
+double get_noise_value(int tile_x, int tile_y)
+{
+    return open_simplex_noise2(ctx.noise_context, tile_x / 8.0, tile_y / 8.0);
 }
 
 void create_tilemap()
@@ -70,30 +76,35 @@ void create_tilemap()
         for (int j = 0; j < TILEMAP_WIDTH; j++)
         {
             // Using simplex noise to find out what the tile will be
-            double value = open_simplex_noise2(ctx.noise_context, j / 8.0, i / 8.0);
+            double value = get_noise_value(j, i);
+            double bottom = get_noise_value(j, i + 2);
 
+            if (value > LAND_THRESHOLD && bottom < LAND_THRESHOLD)
+            {
+                create_tile(j, i, 2);
+            }
             // Forests
-            if (value > 0.3)
+            else if (value > FOREST_THRESHOLD)
             {
                 create_tile(j, i, 1);
             }
             // Threshold for dirt placement
-            else if (value > -0.3)
+            else if (value > LAND_THRESHOLD)
             {
                 bool is_forest = rand() % 8 == 0;
-                bool is_coast = open_simplex_noise2(ctx.noise_context, j / 8.0, (i + 2) / 8.0) < -0.3;
 
-                create_tile(j, i, is_coast ? 2 : is_forest ? 1 : 0);
+                create_tile(j, i, is_forest ? 1 : 0);
             }
             else
             {
                 // Make sure that water tiles have a dest_rect position too
                 assign_tile_position(j, i);
+                ctx.tilemap[i][j].city_index = -1;
             }
         }
     }
 
-    // Generating the capitals at the four map edges (if no land is there, it will be generated)
+    // Generating the capitals at the four map edges (if no land is there, it will be generated with a port too)
     for (int i = 0; i < TOTAL_PLAYERS; i++)
     {
         int position_x = capital_positions[i][0];
@@ -106,9 +117,12 @@ void create_tilemap()
             create_tile(position_x, position_y, 0);
 
         capital->owner_id = i;
+        capital->is_capital = true;
 
         create_city(capital);
         capital->soldiers = create_soldiers(position_x, position_y);
+
+        bool has_created_port = false;
 
         FOREACH_NEIGHBOUR
         {
@@ -120,7 +134,18 @@ void create_tilemap()
             tile_t* tile = &ctx.tilemap[y][x];
 
             // Make sure that land exists
-            if (!tile->is_walkable) create_tile(x, y, 0);
+            if (!tile->is_walkable)
+            {
+                create_tile(x, y, 0);
+
+                if (!has_created_port && get_noise_value(x, y + 1) < LAND_THRESHOLD)
+                {
+                    tile->is_port = true;
+                    tile->source_rect.x = 4 * TILE_WIDTH;
+
+                    has_created_port = true;
+                }
+            }
 
             tile->owner_id = i;
         }
@@ -146,7 +171,6 @@ void generate_unclaimed_cities()
 
 void initialize_context()
 {
-    create_game(&ctx.game, "Hextinction - Early Development Stage", 25 + TILEMAP_WIDTH * (TILE_WIDTH + 16), TILEMAP_HEIGHT * 16 + 16);
     ctx.font = TTF_OpenFont("res/typewritter.ttf", 18);
 
     // Loading textures and audio
@@ -158,14 +182,20 @@ void initialize_context()
     set_transform_scale(&ctx.explosion.sprite.transform, 2);
     ctx.explosion_sfx = load_audio("res/explosion.wav");
 
+    ctx.current_player_id = -1; // Will be set to 0 after next turn
+    create_sprite(&ctx.turn_arrow, load_texture("res/arrow.png"));
+
     create_tilemap();
     generate_unclaimed_cities();
+    next_turn();
 }
 
 int main(int argc, char** argv)
 {
+    create_game(&ctx.game, "Hextinction - Early Development Stage", 25 + TILEMAP_WIDTH * (TILE_WIDTH + 16), TILEMAP_HEIGHT * 16 + 16);
+
     // Initializing noise with seed coming from the arguments
-    open_simplex_noise(argc > 1 ? atoi(argv[1]) : 1239310, &ctx.noise_context);
+    open_simplex_noise(argc > 1 ? atoi(argv[1]) : rand(), &ctx.noise_context);
 
     initialize_context();
 
@@ -185,23 +215,28 @@ int main(int argc, char** argv)
             if (event.type == SDL_MOUSEBUTTONDOWN)
             {
                 int tile_x, tile_y;
-                
                 window_to_tile_position(&tile_x, &tile_y, event.button.x, event.button.y);
+
                 if (!is_valid_tile(tile_x, tile_y)) break;
 
                 tile_t* tile = &ctx.tilemap[tile_y][tile_x];
-                
-                if (!ctx.selected_soldiers)
-                {
-                    if (tile->soldiers) select_soldiers(tile->soldiers, tile_x, tile_y);
-                }
-                else if (tile->soldiers == ctx.selected_soldiers)
+
+                // Deselect if the player presses the selected soldiers
+                if (tile->soldiers == ctx.selected_soldiers)
                 {
                     clear_selected_soldiers();
+                    break;
+                }
+
+                if (!ctx.selected_soldiers)
+                {
+                    select_soldiers(tile->soldiers, tile_x, tile_y);
                 }
                 // Move soldiers
                 else
                 {
+                    if (ctx.selected_soldiers->current_tile->owner_id != ctx.current_player_id) break;
+
                     // First check if the tile is actually accessible
                     tile_t* source_tile = ctx.selected_soldiers->current_tile;
                     int source_x, source_y;
@@ -218,6 +253,17 @@ int main(int argc, char** argv)
                     move_soldiers(ctx.selected_soldiers, tile_x, tile_y);
 
                     clear_selected_soldiers();
+                }
+            }
+
+            else if (event.type == SDL_KEYDOWN)
+            {
+                switch (event.key.keysym.sym)
+                {
+                    // If the space key is pressed, skip turn
+                    case SDLK_SPACE:
+                        next_turn();
+                        break;
                 }
             }
        }
@@ -288,6 +334,8 @@ int main(int argc, char** argv)
 
         if (ctx.explosion.is_active)
             render_animated_sprite(&ctx.explosion, ctx.game.renderer);
+
+        render_sprite(&ctx.turn_arrow, ctx.game.renderer);
 
         SDL_RenderPresent(ctx.game.renderer);
         SDL_Delay(FRAME_DELAY);

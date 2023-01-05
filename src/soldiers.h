@@ -14,6 +14,7 @@ typedef struct
 
     bool is_walkable;
     bool is_port;
+    bool is_capital;
 
     // Index of city_names, left -1 if the tile is not a city
     int city_index;
@@ -33,6 +34,9 @@ typedef struct soldiers_t
 
     tile_t* current_tile;
 } soldiers_t;
+
+// It made sense to put it here because it's called after every soldier move
+void next_turn();
 
 soldiers_t* create_soldiers(int tile_x, int tile_y);
 void set_soldier_units(soldiers_t* soldiers, unsigned int units);

@@ -70,7 +70,7 @@ typedef struct
     char content[MAX_LABEL_LEN];
 } label_t;
 
-void create_label(label_t* label, SDL_Renderer* renderer, TTF_Font* font, const char* content);
+void create_label(label_t* label, TTF_Font* font);
 void set_label_content(label_t* label, SDL_Renderer* renderer, const char* content);
 void set_label_color(label_t* label, SDL_Renderer* renderer, SDL_Color color);
 void destroy_label(label_t* label);
