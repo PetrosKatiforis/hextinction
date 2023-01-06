@@ -98,14 +98,14 @@ void capture_empty_neighbours(int sender_id, int tile_x, int tile_y)
     }
 }
 
-void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
+bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 {
     tile_t* tile = &ctx.tilemap[tile_y][tile_x];
     int sender_id = soldiers->current_tile->owner_id;
 
     // Check if the soldiers are trying to move to a sea tile without being on a port when on land
     if (tile->kind == TILE_WATER && (soldiers->current_tile->kind != TILE_PORT && soldiers->current_tile->kind != TILE_WATER))
-        return;
+        return false;
 
     // Stores if the soldiers go from ship to land or from land to ship so it can update the texture later (XOR operator)
     bool will_change_surface = (tile->kind == TILE_WATER) ^ (soldiers->current_tile->kind == TILE_WATER);
@@ -113,7 +113,9 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     if (!tile->soldiers)
     {
         soldiers->current_tile->soldiers = NULL;
-        tile->owner_id = sender_id;
+
+        if (tile->kind != TILE_WATER)
+            capture_tile(tile, sender_id);
 
         place_soldiers(soldiers, tile);
         capture_empty_neighbours(sender_id, tile_x, tile_y);
@@ -123,14 +125,13 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         if (will_change_surface)
             update_soldiers_texture(soldiers);
 
-        ctx.remaining_moves--;
-        return;
+        return true;
     }
 
     // Check if it's just a move between soldiers of the same player
     if (tile->owner_id == sender_id)
     {
-        if (tile->soldiers->units == MAX_UNITS) return;
+        if (tile->soldiers->units == MAX_UNITS) return false;
 
         unsigned int new_units = tile->soldiers->units + soldiers->units;
 
@@ -145,8 +146,7 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
             set_soldier_units(soldiers, new_units - MAX_UNITS);
         }
 
-        ctx.remaining_moves--;
-        return;
+        return true;
     }
 
     // Handling battles
@@ -193,7 +193,8 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     }
 
     activate_explosion(tile->dest_rect.x, tile->dest_rect.y);
-    ctx.remaining_moves--;
+    
+    return true;
 }
 
 void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)

@@ -16,11 +16,6 @@ bool is_neighbouring_tile(int source_x, int source_y, int dest_x, int dest_y)
     return false;
 }
 
-int get_tilemap_width()
-{
-    return TILEMAP_WIDTH * (TILE_WIDTH + 16) + TILE_WIDTH;
-}
-
 bool window_to_tile_position(int* tile_x, int* tile_y, int x, int y)
 {
     // If you're wondering where these came from, I just solved the tile->dest_rect.x, y formula for its index (see create_tile function)

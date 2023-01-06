@@ -46,8 +46,6 @@ bool is_neighbouring_tile(int source_x, int source_y, int dest_x, int dest_y);
 // Returns true if the tile is valid else false
 bool window_to_tile_position(int* tile_x, int* tile_y, int x, int y);
 
-int get_tilemap_width();
-
 // Checks if the tile with the specified coordinates is inside the map range
 bool is_valid_tile(int tile_x, int tile_y);
 

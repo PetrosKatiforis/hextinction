@@ -26,16 +26,46 @@ void create_interface()
 {
     // Creating the info panel at the right side of the screen
     create_label(&ctx.player_name, ctx.font, 0);
+    set_transform_position(&ctx.player_name.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 20);
+
     create_label(&ctx.player_description, ctx.font, 200);
+    set_transform_position(&ctx.player_description.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 210);
+    
+    create_label(&ctx.player_coins, ctx.font, 0);
+    set_transform_position(&ctx.player_coins.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 400);
+
+    create_label(&ctx.player_territories, ctx.font, 0);
+    set_transform_position(&ctx.player_territories.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 425);
+
+    create_sprite(&ctx.player_profile, load_texture("res/profiles.png"));
+    set_transform_position(&ctx.player_profile.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 50);
+
+    // Manually setting scale and source rect dimensions
+    ctx.player_profile.source_rect.w = 64;
+    ctx.player_profile.transform.rect.w = ctx.player_profile.transform.rect.h = 128;
+
+    ctx.panel_rect = (SDL_Rect) {TOTAL_TILEMAP_WIDTH, 0, PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT};
 }
+
+void update_stats()
+{
+    // Collecting coins and territories to strings
+    char territories[30], coins[20];
+    sprintf(territories, "Territories: %d", ctx.players[ctx.current_player_id].total_territories);
+    sprintf(coins, "Coins: %d", ctx.players[ctx.current_player_id].coins);
+
+    set_label_content(&ctx.player_territories, ctx.game.renderer, territories);
+    set_label_content(&ctx.player_coins, ctx.game.renderer, coins);
+}
+
 
 void update_interface()
 {
     set_label_content(&ctx.player_name, ctx.game.renderer, player_names[ctx.current_player_id]);
-    set_transform_position(&ctx.player_name.sprite.transform, get_tilemap_width(), 20);
-
     set_label_content(&ctx.player_description, ctx.game.renderer, player_descriptions[ctx.current_player_id]);
-    set_transform_position(&ctx.player_description.sprite.transform, get_tilemap_width(), 80);
+
+    ctx.player_profile.source_rect.x = 64 * ctx.current_player_id;
+    update_stats();
 }
 
 void create_tilemap()
@@ -45,10 +75,15 @@ void create_tilemap()
         // Using simplex noise to find out what the tile will be
         double value = get_noise_value(x, y);
         double bottom = get_noise_value(x, y + 2);
+        double top = get_noise_value(x, y - 2);
 
         if (value > LAND_THRESHOLD && bottom < LAND_THRESHOLD)
         {
-            create_tile(x, y, chance_one_in(8) ? TILE_PORT : TILE_COAST);
+            create_tile(x, y, chance_one_in(10) ? TILE_PORT : TILE_COAST);
+        }
+        else if (value > LAND_THRESHOLD && top < LAND_THRESHOLD && chance_one_in(10))
+        {
+            create_tile(x, y, TILE_PORT);
         }
         // Forests
         else if (value > FOREST_THRESHOLD)
@@ -58,7 +93,7 @@ void create_tilemap()
         // Threshold for dirt placement
         else if (value > LAND_THRESHOLD)
         {
-            create_tile(x, y, chance_one_in(8) ? TILE_FOREST : TILE_GRASS);
+            create_tile(x, y, chance_one_in(7) ? TILE_FOREST : TILE_GRASS);
         }
         else
         {
@@ -69,10 +104,10 @@ void create_tilemap()
     }
 
     // Generating the capitals at the four map edges (if no land is there, it will be generated with a port too)
-    for (int i = 0; i < TOTAL_PLAYERS; i++)
+    for (int player_id = 0; player_id < TOTAL_PLAYERS; player_id++)
     {
-        int tile_x = capital_positions[i][0];
-        int tile_y = capital_positions[i][1];
+        int tile_x = capital_positions[player_id][0];
+        int tile_y = capital_positions[player_id][1];
 
         tile_t* capital = &ctx.tilemap[tile_y][tile_x];
 
@@ -80,17 +115,11 @@ void create_tilemap()
         if (capital->kind == TILE_WATER)
             place_grass(tile_x, tile_y);
 
-        capital->owner_id = i;
-        capital->is_capital = true;
-
+        capture_tile(capital, player_id);
         create_city(tile_x, tile_y);
+
+        capital->is_capital = true;
         capital->soldiers = create_soldiers(tile_x, tile_y);
-
-        if (i == 0)
-            set_soldier_units(capital->soldiers, 100);
-
-        // Generating borders if they don't exist, plus a port
-        bool has_created_port = false;
 
         FOREACH_OFFSET(tile_y, TOTAL_NEIGHBOURS, j) 
         {
@@ -98,45 +127,27 @@ void create_tilemap()
             int y = tile_y + neighbours_offsets[j][1];
 
             if (!is_valid_tile(x, y)) continue;
-
-            tile_t* tile = &ctx.tilemap[y][x];
+            tile_t* neighbour = &ctx.tilemap[y][x];
 
             // Make sure that land exists
-            if (tile->kind == TILE_WATER)
+            if (neighbour->kind == TILE_WATER)
                 place_grass(x, y);
 
-            // Generate a port because this might be an isolated island. The player needs a way to exit from there
-            if (!has_created_port && is_valid_tile(x, y + 2) && ctx.tilemap[y + 2][x].kind == TILE_WATER)
-            {
-                set_tile_kind(x, y, TILE_PORT);
-                has_created_port = true;
-            }
-
-            tile->owner_id = i;
+            capture_tile(neighbour, player_id);
         }
+
+        // Generating a port at the bottom and at the top tile if the player needs a way to exit his isolated island 
+        // NOTE: The player can still be blocked, but the probability is really low
+        if (is_valid_tile(tile_x, tile_y + 4) && ctx.tilemap[tile_y + 4][tile_x].kind == TILE_WATER)
+            set_tile_kind(tile_x, tile_y + 2, TILE_PORT);
+    
+        if (is_valid_tile(tile_x, tile_y - 4) && ctx.tilemap[tile_y - 4][tile_x].kind == TILE_WATER)
+            set_tile_kind(tile_x, tile_y - 2, TILE_PORT);
     }
 }
 
 void next_turn()
 {
-    // Spawn soldiers to every conquered city
-    if (ctx.current_player_id >= 0)
-    {
-        MAP_FOREACH(x, y)
-        {
-            tile_t* tile = &ctx.tilemap[y][x];
-
-            // Spawns if it's a city owned by the player
-            if (tile->owner_id != ctx.current_player_id || tile->kind != TILE_CITY) continue;
-
-            if (!tile->soldiers)
-                create_soldiers(x, y);
-
-            else if (tile->soldiers->units != MAX_UNITS)
-                set_soldier_units(tile->soldiers, tile->soldiers->units + 10);
-        }
-    }
-
     ctx.current_player_id++;
     ctx.remaining_moves = MOVES_PER_TURN;
 
@@ -188,7 +199,7 @@ void generate_unclaimed_cities()
 
 void initialize_context()
 {
-    create_game(&ctx.game, "Hextinction - Early Development Stage", get_tilemap_width() + PANEL_WIDTH, TILEMAP_HEIGHT * 16 + 16);
+    create_game(&ctx.game, "Hextinction - Early Development Stage", TOTAL_TILEMAP_WIDTH + PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT);
     ctx.font = TTF_OpenFont("res/free_mono.ttf", 18);
 
     // Loading textures and audio
@@ -271,12 +282,16 @@ int main(int argc, char** argv)
 
                     set_label_color(&ctx.selected_soldiers->units_label, ctx.game.renderer, (SDL_Color) {255, 255, 255, 255});
                     
-                    move_soldiers(ctx.selected_soldiers, tile_x, tile_y);
-                    
-                    // Check if the turn has ended
-                    if (ctx.remaining_moves == 0)
-                        next_turn();
+                    if (move_soldiers(ctx.selected_soldiers, tile_x, tile_y))
+                    {
+                        ctx.remaining_moves--;
+                        update_stats();
 
+                        // Check if the turn has ended
+                        if (ctx.remaining_moves == 0)
+                            next_turn();
+                    }
+                    
                     clear_selected_soldiers();
                 }
             }
@@ -287,7 +302,9 @@ int main(int argc, char** argv)
                 {
                     // If the space key is pressed, skip turn
                     case SDLK_SPACE:
+                        clear_selected_soldiers();
                         next_turn();
+
                         break;
                 }
             }
@@ -296,7 +313,7 @@ int main(int argc, char** argv)
         // Getting delta time in seconds
         float delta = restart_timer(&delta_timer) / 1000.0f;
 
-        SDL_SetRenderDrawColor(ctx.game.renderer, 60, 60, 100, 255);
+        SDL_SetRenderDrawColor(ctx.game.renderer, 40, 40, 70, 255);
         SDL_RenderClear(ctx.game.renderer);
 
         // Rendering the tilemap
@@ -355,8 +372,14 @@ int main(int argc, char** argv)
         render_sprite(&ctx.turn_arrow, ctx.game.renderer);
 
         // Rendering the UI
+        SDL_SetRenderDrawColor(ctx.game.renderer, panel_color.r, panel_color.g, panel_color.b, 255);
+        SDL_RenderFillRect(ctx.game.renderer, &ctx.panel_rect);
+
         render_sprite(&ctx.player_name.sprite, ctx.game.renderer);
+        render_sprite(&ctx.player_territories.sprite, ctx.game.renderer);
+        render_sprite(&ctx.player_coins.sprite, ctx.game.renderer);
         render_sprite(&ctx.player_description.sprite, ctx.game.renderer);
+        render_sprite(&ctx.player_profile, ctx.game.renderer);
 
         SDL_RenderPresent(ctx.game.renderer);
         SDL_Delay(FRAME_DELAY);

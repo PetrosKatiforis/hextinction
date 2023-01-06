@@ -23,6 +23,7 @@
 #define UNITS_PER_TURN 10
 #define MAX_UNITS 100
 #define PANEL_WIDTH 220
+#define PANEL_PADDING 20
 
 #define FOREST_THRESHOLD 0.3
 #define LAND_THRESHOLD -0.3
@@ -31,6 +32,7 @@
 #define TOTAL_LABELS 3 * TILEMAP_HEIGHT
 
 static SDL_Color highlight_color = {255, 255, 255, 80};
+static SDL_Color panel_color = {30, 30, 30, 255};
 
 static char city_names[][CITY_NAME_LEN] = {
     "Athens", "Thessaloniki", "Ankara", "London", "Paris", "Islamabad",
@@ -41,19 +43,19 @@ static char city_names[][CITY_NAME_LEN] = {
 };
 
 static SDL_Color player_colors[TOTAL_PLAYERS] = {
-    {0, 0, 255, 100}, // Physical player color
+    {0, 0, 255, 100},
     {0, 255, 0, 100},
     //{255, 0, 0, 100},
     //{255, 0, 255, 100},
 };
 
 static char player_names[TOTAL_PLAYERS][30] = {
-    "Bluenited Kingdom", "Greenborg", //"Redulke", "Purplevania",
+    "Blunited Kingdom", "Greenborg", //"Redulke", "Purplevania",
 };
 
 static char player_descriptions[TOTAL_PLAYERS][200] = {
     "A powerful kingdom located at the top west. They are ruled by a young monarch whose expertise are naval battles",
-    "A rather hostile barbaric society of gigantic orks. Their army mostly consists of hostage humans",
+    "A rather hostile barbaric society of gigantic orcs. Their army mostly consists of hostage humans",
     //"A fearless empire located on the far east. They passionately want to make themselves stand out from the Arabs",
     //"A mysterious witch town that started explanding with the intension of imporving their living conditions."
 };
@@ -64,6 +66,10 @@ static int capital_positions[TOTAL_PLAYERS][2] = {
     //{TILEMAP_WIDTH - 1, 2},
     //{0, TILEMAP_HEIGHT - 3},
 };
+
+// Using the formula of hex_utils.c, these are in pixels
+#define TOTAL_TILEMAP_HEIGHT TILEMAP_HEIGHT * 16 + 16
+#define TOTAL_TILEMAP_WIDTH TILEMAP_WIDTH * (TILE_WIDTH + 16) + TILE_WIDTH
 
 typedef struct
 {
@@ -106,6 +112,11 @@ typedef struct
     // user interface
     label_t player_name;
     label_t player_description;
+    label_t player_coins;
+    label_t player_territories;
+
+    sprite_t player_profile;
+    SDL_Rect panel_rect;
 } context_t;
 
 // This is its globally accessible instance
