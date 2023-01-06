@@ -77,7 +77,12 @@ void create_tilemap()
         double bottom = get_noise_value(x, y + 2);
         double top = get_noise_value(x, y - 2);
 
-        if (value > LAND_THRESHOLD && bottom < LAND_THRESHOLD)
+        // All bottom tiles should look like coasts
+        if (value > LAND_THRESHOLD && y > TILEMAP_HEIGHT - 3)
+        {
+            create_tile(x, y, TILE_COAST);
+        }
+        else if (value > LAND_THRESHOLD && bottom < LAND_THRESHOLD)
         {
             create_tile(x, y, chance_one_in(10) ? TILE_PORT : TILE_COAST);
         }
@@ -148,6 +153,29 @@ void create_tilemap()
 
 void next_turn()
 {
+    player_t* old_player = &ctx.players[ctx.current_player_id];
+
+    // Calculating previous player's income
+    unsigned int total_tiles = 0;
+
+    MAP_FOREACH(x, y)
+    {
+        tile_t* tile = &ctx.tilemap[y][x];
+        if (tile->owner_id != ctx.current_player_id) continue;
+
+        if (tile->kind == TILE_FARM)
+            old_player->coins += FARM_INCOME;
+
+        else if (tile->kind == TILE_CITY && !tile->is_capital)
+            old_player->coins += CITY_INCOME;
+
+        else if (tile->kind == TILE_GRASS || tile->kind == TILE_FOREST)
+            total_tiles++;
+    }
+
+    old_player->coins += floor(total_tiles / TERRITORIES_PER_COIN);
+
+    // Going to the next player
     ctx.current_player_id++;
     ctx.remaining_moves = MOVES_PER_TURN;
 
@@ -197,6 +225,101 @@ void generate_unclaimed_cities()
     }
 }
 
+void decrement_move()
+{
+    ctx.remaining_moves--;
+
+    // Check if the turn has ended
+    if (ctx.remaining_moves == 0)
+        next_turn();
+}
+
+// Handles soldier selection and attacks
+void handle_click(int tile_x, int tile_y)
+{
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+
+    // Deselect if the player presses the selected soldiers
+    if (tile->soldiers == ctx.selected_soldiers)
+    {
+        clear_selected_soldiers();
+
+        return;
+    }
+
+    if (!ctx.selected_soldiers)
+    {
+        select_soldiers(tile->soldiers, tile_x, tile_y);
+    }
+    // Move soldiers
+    else
+    {
+        if (ctx.selected_soldiers->current_tile->owner_id != ctx.current_player_id) return;
+
+        // First check if the tile is actually accessible
+        tile_t* source_tile = ctx.selected_soldiers->current_tile;
+        int source_x, source_y;
+
+        window_to_tile_position(&source_x, &source_y, source_tile->dest_rect.x, source_tile->dest_rect.y);
+        
+        if (!is_neighbouring_tile(source_x, source_y, tile_x, tile_y))
+        {
+            clear_selected_soldiers();
+            
+            return;
+        }
+
+        set_label_color(&ctx.selected_soldiers->units_label, ctx.game.renderer, (SDL_Color) {255, 255, 255, 255});
+        
+        if (move_soldiers(ctx.selected_soldiers, tile_x, tile_y))
+        {
+            update_stats();
+            decrement_move();
+        }
+        
+        clear_selected_soldiers();
+    }
+}
+
+void handle_right_click(int tile_x, int tile_y)
+{
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+
+    if (tile->owner_id != ctx.current_player_id) return;
+    player_t* current_player = &ctx.players[ctx.current_player_id];
+
+    // Tries to train soldiers
+    if (tile->kind == TILE_CITY)
+    {
+        if (current_player->coins >= TRAINING_COST)
+        {
+            if (!tile->soldiers)
+                tile->soldiers = create_soldiers(tile_x, tile_y);
+
+            else
+            {
+                if (tile->soldiers->units == MAX_UNITS) return;
+
+                set_soldier_units(tile->soldiers, tile->soldiers->units + UNITS_PER_TRAIN);
+            }
+
+            current_player->coins -= TRAINING_COST;
+            
+            play_audio(ctx.military_sfx);
+            decrement_move();
+            update_stats();
+        }
+    }
+    else if (tile->kind == TILE_GRASS && current_player->coins >= FARM_COST)
+    {
+        current_player->coins -= FARM_COST;
+
+        set_tile_kind(tile_x, tile_y, TILE_FARM);
+        update_stats();
+        decrement_move();
+    }
+}
+
 void initialize_context()
 {
     create_game(&ctx.game, "Hextinction - Early Development Stage", TOTAL_TILEMAP_WIDTH + PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT);
@@ -206,11 +329,14 @@ void initialize_context()
     ctx.tilemap_texture = load_texture("res/tilemap.png");
     ctx.border_texture = load_texture("res/border.png");
     ctx.soldiers_texture = load_texture("res/soldiers.png");
-    ctx.soldiers_sfx = load_audio("res/soldier_placement.wav");
+
+    ctx.dirt_sfx = load_audio("res/dirt.wav");
+    ctx.cannon_sfx = load_audio("res/cannon.wav");
+    ctx.shipbell_sfx = load_audio("res/shipbell.wav");
+    ctx.military_sfx = load_audio("res/military.wav");
 
     create_animated_sprite(&ctx.explosion, load_texture("res/explosion.png"), 9, 100);
     set_transform_scale(&ctx.explosion.sprite.transform, 2);
-    ctx.explosion_sfx = load_audio("res/explosion.wav");
 
     ctx.current_player_id = -1; // Will be set to 0 after next turn
     create_sprite(&ctx.turn_arrow, load_texture("res/arrow.png"));
@@ -245,55 +371,14 @@ int main(int argc, char** argv)
 
             if (event.type == SDL_MOUSEBUTTONDOWN)
             {
+                // Getting the tile that was clicked
                 int tile_x, tile_y;
                 
                 if (!window_to_tile_position(&tile_x, &tile_y, event.button.x, event.button.y))
                     break;
 
-                tile_t* tile = &ctx.tilemap[tile_y][tile_x];
-
-                // Deselect if the player presses the selected soldiers
-                if (tile->soldiers == ctx.selected_soldiers)
-                {
-                    clear_selected_soldiers();
-                    break;
-                }
-
-                if (!ctx.selected_soldiers)
-                {
-                    select_soldiers(tile->soldiers, tile_x, tile_y);
-                }
-                // Move soldiers
-                else
-                {
-                    if (ctx.selected_soldiers->current_tile->owner_id != ctx.current_player_id) break;
-
-                    // First check if the tile is actually accessible
-                    tile_t* source_tile = ctx.selected_soldiers->current_tile;
-                    int source_x, source_y;
-
-                    window_to_tile_position(&source_x, &source_y, source_tile->dest_rect.x, source_tile->dest_rect.y);
-                    
-                    /*if (!is_neighbouring_tile(source_x, source_y, tile_x, tile_y))
-                    {
-                        clear_selected_soldiers();
-                        break;
-                    }*/
-
-                    set_label_color(&ctx.selected_soldiers->units_label, ctx.game.renderer, (SDL_Color) {255, 255, 255, 255});
-                    
-                    if (move_soldiers(ctx.selected_soldiers, tile_x, tile_y))
-                    {
-                        ctx.remaining_moves--;
-                        update_stats();
-
-                        // Check if the turn has ended
-                        if (ctx.remaining_moves == 0)
-                            next_turn();
-                    }
-                    
-                    clear_selected_soldiers();
-                }
+                if (event.button.button == SDL_BUTTON_LEFT) handle_click(tile_x, tile_y);
+                else handle_right_click(tile_x, tile_y);
             }
 
             else if (event.type == SDL_KEYDOWN)

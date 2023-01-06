@@ -1,5 +1,6 @@
 #include "soldiers.h"
 #include "engine/utils.h"
+#include "engine/audio.h"
 #include "context.h"
 #include "hex_utils.h"
 
@@ -62,7 +63,7 @@ soldiers_t* create_soldiers(int tile_x, int tile_y)
     soldiers->current_tile = &ctx.tilemap[tile_y][tile_x];
 
     create_label(&soldiers->units_label, ctx.font, 0);
-    set_soldier_units(soldiers, UNITS_PER_TURN);
+    set_soldier_units(soldiers, UNITS_PER_TRAIN);
 
     // Will position the text too
     place_soldiers(soldiers, &ctx.tilemap[tile_y][tile_x]);
@@ -76,7 +77,7 @@ void activate_explosion(int pos_x, int pos_y)
     set_transform_position(&ctx.explosion.sprite.transform, pos_x - 16, pos_y - 16);
     play_animated_sprite(&ctx.explosion);// Making it into a constant because it might change in the future
     
-    play_audio(ctx.explosion_sfx);
+    play_audio(ctx.cannon_sfx);
 }
 
 void capture_empty_neighbours(int sender_id, int tile_x, int tile_y)
@@ -91,9 +92,24 @@ void capture_empty_neighbours(int sender_id, int tile_x, int tile_y)
 
         tile_t* tile = &ctx.tilemap[y][x];
 
-        if (!tile->soldiers && tile->kind != TILE_CITY && tile->kind != TILE_WATER)
+        if (!tile->soldiers && tile->kind != TILE_CITY && tile->kind != TILE_WATER && tile->kind != TILE_FARM)
         {
             capture_tile(tile, sender_id);
+        }
+    }
+}
+
+void conquer_player(int attacker_id, int loser_id)
+{
+    ctx.players[loser_id].is_dead = true;
+
+    MAP_FOREACH(x, y)
+    {
+        tile_t* tile = &ctx.tilemap[y][x];
+
+        if (tile->owner_id == loser_id && tile->kind != TILE_WATER)
+        {
+            capture_tile(tile, attacker_id);
         }
     }
 }
@@ -114,28 +130,44 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     {
         soldiers->current_tile->soldiers = NULL;
 
-        if (tile->kind != TILE_WATER)
-            capture_tile(tile, sender_id);
+        if (tile->owner_id != sender_id)
+        {
+            // Destroy enemy farm on capture
+            if (tile->kind == TILE_FARM)
+                set_tile_kind(tile_x, tile_y, TILE_GRASS);
+
+            if (tile->is_capital)
+                conquer_player(sender_id, tile->owner_id);
+
+            else
+                capture_tile(tile, sender_id);
+        }
 
         place_soldiers(soldiers, tile);
         capture_empty_neighbours(sender_id, tile_x, tile_y);
     
-        play_audio(ctx.soldiers_sfx);
 
         if (will_change_surface)
+        {
+            play_audio(ctx.shipbell_sfx);
             update_soldiers_texture(soldiers);
+        }
+        else
+        {
+            play_audio(ctx.dirt_sfx);
+        }
 
         return true;
     }
 
-    // Check if it's just a move between soldiers of the same player
+     // Check if it's just a move between soldiers of the same player
     if (tile->owner_id == sender_id)
     {
         if (tile->soldiers->units == MAX_UNITS) return false;
 
         unsigned int new_units = tile->soldiers->units + soldiers->units;
 
-        if (new_units < MAX_UNITS)
+        if (new_units <= MAX_UNITS)
         {
             set_soldier_units(tile->soldiers, new_units);
             destroy_soldiers(soldiers);
@@ -163,32 +195,20 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     }
     // This is a victory
     else
-    {
-        set_soldier_units(tile->soldiers, -attack_result);
-    
-        int enemy_id = tile->owner_id;
+    {    
+        if (tile->kind == TILE_FARM)
+            set_tile_kind(tile_x, tile_y, TILE_GRASS);
 
         // Conquering a capital should kill the player and make his kingdom part of the attacker's
         if (tile->is_capital)
         {
             tile->is_capital = false;
-            ctx.players[enemy_id].is_dead = true;
-
-            MAP_FOREACH(x, y)
-            {
-                tile_t* other_tile = &ctx.tilemap[y][x];
-
-                if (other_tile->owner_id == enemy_id)
-                {
-                    capture_tile(other_tile, sender_id);
-                }
-            }
+            conquer_player(sender_id, tile->owner_id);
         }
         else
-        {
             capture_tile(tile, sender_id);
-        }
 
+        set_soldier_units(tile->soldiers, -attack_result);
         capture_empty_neighbours(sender_id, tile_x, tile_y);
     }
 

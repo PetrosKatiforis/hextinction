@@ -16,12 +16,20 @@
 
 // Constants that should be configured by the programmer
 #define FRAMES_PER_SECOND 20
+#define MOVES_PER_TURN 5
+#define TOTAL_PLAYERS 2
+#define UNITS_PER_TRAIN 10
+#define TRAINING_COST 10
+#define MAX_UNITS 100
+#define FARM_COST 10
+#define FARM_INCOME 3
+#define CITY_INCOME 1
+
+// For every TERRITORIES_PER_COIN captured tiles, the player receives one coin
+#define TERRITORIES_PER_COIN 10
+
 #define TILEMAP_WIDTH 20
 #define TILEMAP_HEIGHT 34 
-#define MOVES_PER_TURN 50
-#define TOTAL_PLAYERS 2
-#define UNITS_PER_TURN 10
-#define MAX_UNITS 100
 #define PANEL_WIDTH 220
 #define PANEL_PADDING 20
 
@@ -43,10 +51,10 @@ static char city_names[][CITY_NAME_LEN] = {
 };
 
 static SDL_Color player_colors[TOTAL_PLAYERS] = {
-    {0, 0, 255, 100},
-    {0, 255, 0, 100},
-    //{255, 0, 0, 100},
-    //{255, 0, 255, 100},
+    {0, 0, 255, 70},
+    {0, 255, 0, 70},
+    //{255, 0, 0, 50},
+    //{255, 0, 255, 50},
 };
 
 static char player_names[TOTAL_PLAYERS][30] = {
@@ -85,6 +93,12 @@ typedef struct
     game_t game;
     TTF_Font* font;
     struct osn_context* noise_context;
+    
+    audio_t shipbell_sfx;
+    audio_t cannon_sfx;
+    audio_t dirt_sfx;
+    audio_t military_sfx;
+    animated_sprite_t explosion;
 
     SDL_Texture* tilemap_texture;
     SDL_Texture* border_texture;
@@ -98,9 +112,6 @@ typedef struct
     // player capitals + cities
     label_t city_labels[TOTAL_LABELS];
     unsigned int total_cities;
-
-    animated_sprite_t explosion;
-    audio_t explosion_sfx;
 
     // properties needed for turn-based gameplay
     player_t players[TOTAL_PLAYERS];
