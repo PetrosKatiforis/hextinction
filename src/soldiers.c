@@ -12,17 +12,60 @@ void place_soldiers(soldiers_t* soldiers, tile_t* tile)
     set_transform_position(&soldiers->units_label.sprite.transform, tile->dest_rect.x + TILE_WIDTH - 8, tile->dest_rect.y + TILE_HEIGHT - 8);
 }
 
+void update_soldiers_texture(soldiers_t* soldiers)
+{
+    // If it's sea, pick a ship texture
+    if (soldiers->current_tile->kind == TILE_WATER)
+    {
+        soldiers->source_rect.x = (soldiers->current_tile->owner_id + 1) * TILE_WIDTH;
+    }
+    else
+    {
+        // TODO: Make the texture change depending on the units (10-30 soldiers, 30-60 cannon or something like that)
+        soldiers->source_rect.x = 0;
+    }
+}
+
+void set_soldier_units(soldiers_t* soldiers, unsigned int units) 
+{
+    units = MIN(MAX_UNITS, units);
+
+    // Converting unsigned int to a c string
+    char new_content[10];
+    sprintf(new_content, "%u", units);
+
+    soldiers->units = units;
+    set_label_content(&soldiers->units_label, ctx.game.renderer, new_content);
+
+    update_soldiers_texture(soldiers);
+}
+
+// Captures tile and adjusts total territories
+void capture_tile(tile_t* dest, int sender_id)
+{
+    ctx.players[sender_id].total_territories++;
+
+    if (dest->owner_id >= 0)
+        ctx.players[dest->owner_id].total_territories--;
+
+    dest->owner_id = sender_id;
+}
+
 soldiers_t* create_soldiers(int tile_x, int tile_y)
 {
+    // Soldiers are malloced so that they can be passed through tiles without copying them
     soldiers_t* soldiers = malloc(sizeof(soldiers_t));
 
-    place_soldiers(soldiers, &ctx.tilemap[tile_y][tile_x]);
+    soldiers->source_rect = (SDL_Rect) {0, 0, TILE_WIDTH, TILE_HEIGHT};
 
-    // Default soldier units
-    create_label(&soldiers->units_label, ctx.font);
+    // Have to do this before place_soldiers because we must first be able to initialize the text
+    soldiers->current_tile = &ctx.tilemap[tile_y][tile_x];
+
+    create_label(&soldiers->units_label, ctx.font, 0);
     set_soldier_units(soldiers, UNITS_PER_TURN);
 
-    soldiers->source_rect = (SDL_Rect) {0, 0, TILE_WIDTH, TILE_HEIGHT};
+    // Will position the text too
+    place_soldiers(soldiers, &ctx.tilemap[tile_y][tile_x]);
 
     return soldiers;
 }
@@ -36,20 +79,7 @@ void activate_explosion(int pos_x, int pos_y)
     play_audio(ctx.explosion_sfx);
 }
 
-void update_soldiers_texture(soldiers_t* soldiers)
-{
-    // If it's sea, pick a ship texture
-    if (soldiers->current_tile->kind == TILE_WATER)
-    {
-        soldiers->source_rect.x = (soldiers->current_tile->owner_id + 1) * TILE_WIDTH;
-    }
-    else
-    {
-        soldiers->source_rect.x = 0;
-    }
-}
-
-void capture_empty_neighbours(soldiers_t* soldiers, int tile_x, int tile_y)
+void capture_empty_neighbours(int sender_id, int tile_x, int tile_y)
 {
     // Capture empty neighbouring tiles
     FOREACH_OFFSET(tile_y, TOTAL_NEIGHBOURS, i) 
@@ -61,8 +91,10 @@ void capture_empty_neighbours(soldiers_t* soldiers, int tile_x, int tile_y)
 
         tile_t* tile = &ctx.tilemap[y][x];
 
-        if (!tile->soldiers && tile->city_index < 0)
-            tile->owner_id = soldiers->current_tile->owner_id;
+        if (!tile->soldiers && tile->kind != TILE_CITY && tile->kind != TILE_WATER)
+        {
+            capture_tile(tile, sender_id);
+        }
     }
 }
 
@@ -84,7 +116,7 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         tile->owner_id = sender_id;
 
         place_soldiers(soldiers, tile);
-        capture_empty_neighbours(soldiers, tile_x, tile_y);
+        capture_empty_neighbours(sender_id, tile_x, tile_y);
     
         play_audio(ctx.soldiers_sfx);
 
@@ -117,63 +149,51 @@ void move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         return;
     }
 
-    if (tile->soldiers->units >= soldiers->units)
+    // Handling battles
+    int attack_result = tile->soldiers->units - soldiers->units;
+    destroy_soldiers(soldiers);
+         
+    if (attack_result == 0)
     {
-        unsigned int remaining_units = tile->soldiers->units - soldiers->units;
-        destroy_soldiers(soldiers);
-
-        if (remaining_units == 0)
-        {
-            destroy_soldiers(tile->soldiers);
-        }
-        else
-        {
-            set_soldier_units(tile->soldiers, remaining_units);
-        }
+        destroy_soldiers(tile->soldiers);
     }
+    else if (attack_result > 0)
+    {
+        set_soldier_units(tile->soldiers, attack_result);
+    }
+    // This is a victory
     else
     {
-        unsigned int remaining_units = soldiers->units - tile->soldiers->units;
-
-        destroy_soldiers(soldiers);
-        set_soldier_units(tile->soldiers, remaining_units);
-        capture_empty_neighbours(soldiers, tile_x, tile_y);
+        set_soldier_units(tile->soldiers, -attack_result);
     
-        // Check if it was a capital
+        int enemy_id = tile->owner_id;
+
+        // Conquering a capital should kill the player and make his kingdom part of the attacker's
         if (tile->is_capital)
         {
             tile->is_capital = false;
-            ctx.is_player_dead[tile->owner_id] = true;
+            ctx.players[enemy_id].is_dead = true;
 
-            for (int i = 0; i < TILEMAP_WIDTH; i++)
+            MAP_FOREACH(x, y)
             {
-                for (int j = 0; j < TILEMAP_HEIGHT; j++)
-                {
-                    tile_t* other_tile = &ctx.tilemap[i][j];
+                tile_t* other_tile = &ctx.tilemap[y][x];
 
-                    if (other_tile->owner_id == tile->owner_id)
-                        other_tile->owner_id = sender_id; 
+                if (other_tile->owner_id == enemy_id)
+                {
+                    capture_tile(other_tile, sender_id);
                 }
             }
         }
+        else
+        {
+            capture_tile(tile, sender_id);
+        }
+
+        capture_empty_neighbours(sender_id, tile_x, tile_y);
     }
 
     activate_explosion(tile->dest_rect.x, tile->dest_rect.y);
     ctx.remaining_moves--;
-}
-
-void set_soldier_units(soldiers_t* soldiers, unsigned int units) 
-{
-    units = MIN(MAX_UNITS, units);
-
-    // Converting unsigned int to a c string
-    char new_content[10];
-    sprintf(new_content, "%u", units);
-
-    soldiers->units = units;
-    set_label_content(&soldiers->units_label, ctx.game.renderer, new_content);
-
-    update_soldiers_texture(soldiers);
 }
 
 void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)

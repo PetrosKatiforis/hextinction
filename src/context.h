@@ -8,6 +8,7 @@
 #include "engine/sprite.h"
 #include "engine/audio.h"
 #include "libs/open-simplex/noise.h"
+#include "hex_utils.h"
 
 #define TILE_WIDTH 34
 #define TILE_HEIGHT 32
@@ -21,15 +22,13 @@
 #define TOTAL_PLAYERS 2
 #define UNITS_PER_TURN 10
 #define MAX_UNITS 100
-#define TOTAL_NEIGHBOURS 6
-#define TOTAL_HIGHLIGHTED 18
+#define PANEL_WIDTH 220
 
 #define FOREST_THRESHOLD 0.3
 #define LAND_THRESHOLD -0.3
 
-#include "hex_utils.h"
-
-#define TOTAL_LABELS (TILEMAP_WIDTH / 5) * TILEMAP_HEIGHT
+// It's ok if it's a bit more than the real value
+#define TOTAL_LABELS 3 * TILEMAP_HEIGHT
 
 static SDL_Color highlight_color = {255, 255, 255, 80};
 
@@ -48,12 +47,31 @@ static SDL_Color player_colors[TOTAL_PLAYERS] = {
     //{255, 0, 255, 100},
 };
 
+static char player_names[TOTAL_PLAYERS][30] = {
+    "Bluenited Kingdom", "Greenborg", //"Redulke", "Purplevania",
+};
+
+static char player_descriptions[TOTAL_PLAYERS][200] = {
+    "A powerful kingdom located at the top west. They are ruled by a young monarch whose expertise are naval battles",
+    "A rather hostile barbaric society of gigantic orks. Their army mostly consists of hostage humans",
+    //"A fearless empire located on the far east. They passionately want to make themselves stand out from the Arabs",
+    //"A mysterious witch town that started explanding with the intension of imporving their living conditions."
+};
+
 static int capital_positions[TOTAL_PLAYERS][2] = {
     {0, 3},
     {TILEMAP_WIDTH - 1, TILEMAP_HEIGHT - 4},
     //{TILEMAP_WIDTH - 1, 2},
     //{0, TILEMAP_HEIGHT - 3},
 };
+
+typedef struct
+{
+    bool is_dead;
+
+    unsigned int total_territories;
+    unsigned int coins;
+} player_t;
 
 // This is all the game state, accumulated in one big struct
 typedef struct
@@ -79,11 +97,15 @@ typedef struct
     audio_t explosion_sfx;
 
     // properties needed for turn-based gameplay
-    bool is_player_dead[TOTAL_PLAYERS];
+    player_t players[TOTAL_PLAYERS];
     int current_player_id;
     int remaining_moves;
 
     sprite_t turn_arrow;
+
+    // user interface
+    label_t player_name;
+    label_t player_description;
 } context_t;
 
 // This is its globally accessible instance

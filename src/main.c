@@ -22,6 +22,22 @@ void place_grass(int tile_x, int tile_y)
     }
 }
 
+void create_interface()
+{
+    // Creating the info panel at the right side of the screen
+    create_label(&ctx.player_name, ctx.font, 0);
+    create_label(&ctx.player_description, ctx.font, 200);
+}
+
+void update_interface()
+{
+    set_label_content(&ctx.player_name, ctx.game.renderer, player_names[ctx.current_player_id]);
+    set_transform_position(&ctx.player_name.sprite.transform, get_tilemap_width(), 20);
+
+    set_label_content(&ctx.player_description, ctx.game.renderer, player_descriptions[ctx.current_player_id]);
+    set_transform_position(&ctx.player_description.sprite.transform, get_tilemap_width(), 80);
+}
+
 void create_tilemap()
 {
     MAP_FOREACH(x, y)
@@ -69,6 +85,9 @@ void create_tilemap()
 
         create_city(tile_x, tile_y);
         capital->soldiers = create_soldiers(tile_x, tile_y);
+
+        if (i == 0)
+            set_soldier_units(capital->soldiers, 100);
 
         // Generating borders if they don't exist, plus a port
         bool has_created_port = false;
@@ -125,7 +144,9 @@ void next_turn()
         ctx.current_player_id = 0;
 
     // Skip if the player is dead
-    if (ctx.is_player_dead[ctx.current_player_id]) return next_turn();
+    if (ctx.players[ctx.current_player_id].is_dead) return next_turn();
+
+    update_interface();
 
     // Positioning turn arrow
     int capital_position[2];
@@ -167,8 +188,8 @@ void generate_unclaimed_cities()
 
 void initialize_context()
 {
-    create_game(&ctx.game, "Hextinction - Early Development Stage", 25 + TILEMAP_WIDTH * (TILE_WIDTH + 16), TILEMAP_HEIGHT * 16 + 16);
-    ctx.font = TTF_OpenFont("res/typewritter.ttf", 18);
+    create_game(&ctx.game, "Hextinction - Early Development Stage", get_tilemap_width() + PANEL_WIDTH, TILEMAP_HEIGHT * 16 + 16);
+    ctx.font = TTF_OpenFont("res/free_mono.ttf", 18);
 
     // Loading textures and audio
     ctx.tilemap_texture = load_texture("res/tilemap.png");
@@ -185,6 +206,7 @@ void initialize_context()
 
     create_tilemap();
     generate_unclaimed_cities();
+    create_interface();
     next_turn();
 }
 
@@ -213,9 +235,9 @@ int main(int argc, char** argv)
             if (event.type == SDL_MOUSEBUTTONDOWN)
             {
                 int tile_x, tile_y;
-                window_to_tile_position(&tile_x, &tile_y, event.button.x, event.button.y);
-
-                if (!is_valid_tile(tile_x, tile_y)) break;
+                
+                if (!window_to_tile_position(&tile_x, &tile_y, event.button.x, event.button.y))
+                    break;
 
                 tile_t* tile = &ctx.tilemap[tile_y][tile_x];
 
@@ -241,11 +263,11 @@ int main(int argc, char** argv)
 
                     window_to_tile_position(&source_x, &source_y, source_tile->dest_rect.x, source_tile->dest_rect.y);
                     
-                    if (!is_neighbouring_tile(source_x, source_y, tile_x, tile_y))
+                    /*if (!is_neighbouring_tile(source_x, source_y, tile_x, tile_y))
                     {
                         clear_selected_soldiers();
                         break;
-                    }
+                    }*/
 
                     set_label_color(&ctx.selected_soldiers->units_label, ctx.game.renderer, (SDL_Color) {255, 255, 255, 255});
                     
@@ -324,13 +346,17 @@ int main(int argc, char** argv)
         }
 
         // Rendering city labels
-        for (int i = 0; i < ctx.total_cities; i++)
+        for (int i = 0; i < TOTAL_PLAYERS; i++)
             render_sprite(&ctx.city_labels[i].sprite, ctx.game.renderer);
 
         if (ctx.explosion.is_active)
             render_animated_sprite(&ctx.explosion, ctx.game.renderer);
 
         render_sprite(&ctx.turn_arrow, ctx.game.renderer);
+
+        // Rendering the UI
+        render_sprite(&ctx.player_name.sprite, ctx.game.renderer);
+        render_sprite(&ctx.player_description.sprite, ctx.game.renderer);
 
         SDL_RenderPresent(ctx.game.renderer);
         SDL_Delay(FRAME_DELAY);

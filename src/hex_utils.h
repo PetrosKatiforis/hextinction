@@ -1,6 +1,9 @@
 #ifndef _HEX_UTILS_H
 #define _HEX_UTILS_H
 
+#define TOTAL_NEIGHBOURS 6
+#define TOTAL_HIGHLIGHTED 18
+
 #include "context.h"
 
 /*
@@ -39,7 +42,11 @@ static int highlighted_offsets[TOTAL_HIGHLIGHTED * 2][2] = {
 
 
 bool is_neighbouring_tile(int source_x, int source_y, int dest_x, int dest_y);
-void window_to_tile_position(int* tile_x, int* tile_y, int x, int y);
+
+// Returns true if the tile is valid else false
+bool window_to_tile_position(int* tile_x, int* tile_y, int x, int y);
+
+int get_tilemap_width();
 
 // Checks if the tile with the specified coordinates is inside the map range
 bool is_valid_tile(int tile_x, int tile_y);

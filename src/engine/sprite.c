@@ -102,10 +102,15 @@ void render_animated_sprite(animated_sprite_t* anim_sprite, SDL_Renderer* render
 
 
 // Text-specific methods
-void create_label(label_t* label, TTF_Font* font)
+// TODO: Probably create your own version of this because from what I've heard, SDL's way is slow
+// (why am I talking to myself using "you"?)
+void create_label(label_t* label, TTF_Font* font, unsigned int wrap_length)
 {
     label->font = font;
+    label->content = NULL;
+
     label->color = (SDL_Color) {255, 255, 255, 255};
+    label->wrap_length = wrap_length;
 }
 
 void destroy_label(label_t* label)
@@ -117,7 +122,9 @@ void update_label_texture(label_t* label, SDL_Renderer* renderer)
 {
     SDL_DestroyTexture(label->sprite.texture);
 
-    SDL_Surface* label_surface = TTF_RenderText_Solid(label->font, label->content, label->color);
+    SDL_Surface* label_surface = label->wrap_length > 0
+        ? TTF_RenderText_Solid_Wrapped(label->font, label->content, label->color, label->wrap_length)
+        : TTF_RenderText_Solid(label->font, label->content, label->color);
 
     create_sprite(&label->sprite, SDL_CreateTextureFromSurface(renderer, label_surface));
 
@@ -127,7 +134,12 @@ void update_label_texture(label_t* label, SDL_Renderer* renderer)
 // Warning: the user must reset the origin if they want the text to be centered again, because the dimensions will change!
 void set_label_content(label_t* label, SDL_Renderer* renderer, const char* content)
 {
-    strcpy(label->content, content);
+    // I'm not sure if this is the most efficient way of doing it...
+    if (label->content)
+        free(label->content);
+
+    label->content = strdup(content);
+
     update_label_texture(label, renderer);
 }
 

@@ -44,7 +44,7 @@ void create_city(int tile_x, int tile_y)
         // Ignore it if it's already used
         if (label->sprite.texture != NULL) continue;
 
-        create_label(label, ctx.font);
+        create_label(label, ctx.font, 0);
         set_label_content(label, ctx.game.renderer, city_names[tile->city_index]);
         set_transform_position(&label->sprite.transform, tile->dest_rect.x + 40, tile->dest_rect.y + 4);
 
