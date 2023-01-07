@@ -2,6 +2,8 @@
 
 Hextinction is a local multiplayer turn-based hex-tiled pixel art strategy game where you are the ruler of a kingdom. The gameplay is a bit complex so here's a simple explanation of how to play:
 
+![Game Banner](/extra_images/banner.png?raw=true)
+
 ## How to Play
 
 (Before showing the rules, I just want to make it clear that everything is customizable. The game is structured using constants defined mostly in `` context.h ``)
