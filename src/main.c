@@ -367,7 +367,7 @@ void handle_train(int tile_x, int tile_y, int choice)
 
 void initialize_context()
 {
-    create_game(&ctx.game, "Hextinction - Early Development Stage", TOTAL_TILEMAP_WIDTH + PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT);
+    create_game(&ctx.game, "Hextinction", TOTAL_TILEMAP_WIDTH + PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT);
     ctx.font = TTF_OpenFont("res/free_mono.ttf", 18);
 
     // Loading textures and audio
