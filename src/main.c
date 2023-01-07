@@ -5,11 +5,8 @@
 
 #include "context.h"
 #include "hex_utils.h"
-#include "engine/timers.h"
 #include "engine/utils.h"
 #include "libs/open-simplex/noise.h"
-
-#define FRAME_DELAY 1000 / FRAMES_PER_SECOND
 
 // Places grass at the specified position and removes visual glitches
 void place_grass(int tile_x, int tile_y)
@@ -31,11 +28,18 @@ void create_interface()
     create_label(&ctx.player_description, ctx.font, 200);
     set_transform_position(&ctx.player_description.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 210);
     
-    create_label(&ctx.player_coins, ctx.font, 0);
-    set_transform_position(&ctx.player_coins.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 400);
-
     create_label(&ctx.player_territories, ctx.font, 0);
-    set_transform_position(&ctx.player_territories.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 425);
+    set_transform_position(&ctx.player_territories.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 400);
+
+    create_label(&ctx.player_coins, ctx.font, 0);
+    set_transform_position(&ctx.player_coins.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 425);
+
+    create_label(&ctx.player_income, ctx.font, 0);
+    set_transform_position(&ctx.player_income.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 450);
+
+    create_label(&ctx.player_moves, ctx.font, 0);
+    // +2 because for some reason M appears a bit off in this font
+    set_transform_position(&ctx.player_moves.sprite.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING + 2, 475);
 
     create_sprite(&ctx.player_profile, load_texture("res/profiles.png"));
     set_transform_position(&ctx.player_profile.transform, TOTAL_TILEMAP_WIDTH + PANEL_PADDING, 50);
@@ -47,11 +51,10 @@ void create_interface()
     ctx.panel_rect = (SDL_Rect) {TOTAL_TILEMAP_WIDTH, 0, PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT};
 
     // Creating the dropdowns
-    char farm_text[20], walls_text[20];
+    char farm_text[20];
     sprintf(farm_text, "Build Farm (%d Coins)", FARM_COST);
-    sprintf(walls_text, "Build Walls (%d Coins)", FARM_COST);
 
-    create_dropdown(&ctx.build_dropdown, ctx.game.renderer, ctx.font, 2, farm_text, walls_text);
+    create_dropdown(&ctx.build_dropdown, ctx.game.renderer, ctx.font, 1, farm_text);
 
     char knight_text[40], saboteur_text[40];
     sprintf(knight_text, "Train Knight (%d Coins)", SOLDIER_COSTS[SOLDIER_KNIGHT]);
@@ -62,13 +65,21 @@ void create_interface()
 
 void update_stats()
 {
-    // Collecting coins and territories to strings
-    char territories[30], coins[20];
-    sprintf(territories, "Territories: %d", ctx.players[ctx.current_player_id].total_territories);
-    sprintf(coins, "Coins: %d", ctx.players[ctx.current_player_id].coins);
+    player_t* player = &ctx.players[ctx.current_player_id];
 
-    set_label_content(&ctx.player_territories, ctx.game.renderer, territories);
+    // Calculating income here
+    player->income = FARM_INCOME * player->total_farms + CITY_INCOME * player->total_cities
+        - (player->total_units / 10) * COST_PER_10_UNITS + player->total_territories / TERRITORIES_PER_COIN;
+
+    // Collecting coins and territories to strings
+    char territories[30], coins[20], income[20];
+    sprintf(coins, "Coins: %d", ctx.players[ctx.current_player_id].coins);
+    sprintf(territories, "Territories: %d", ctx.players[ctx.current_player_id].total_territories);
+    sprintf(income, "Income: %d", ctx.players[ctx.current_player_id].income);
+
     set_label_content(&ctx.player_coins, ctx.game.renderer, coins);
+    set_label_content(&ctx.player_territories, ctx.game.renderer, territories);
+    set_label_content(&ctx.player_income, ctx.game.renderer, income);
 }
 
 void update_interface()
@@ -78,6 +89,14 @@ void update_interface()
 
     ctx.player_profile.source_rect.x = 64 * ctx.current_player_id;
     update_stats();
+}
+
+void update_moves_label()
+{
+    char moves_text[20];
+    sprintf(moves_text, "Moves Left: %d", ctx.remaining_moves);
+
+    set_label_content(&ctx.player_moves, ctx.game.renderer, moves_text);
 }
 
 void create_tilemap()
@@ -133,7 +152,7 @@ void create_tilemap()
         tile_t* capital = &ctx.tilemap[tile_y][tile_x];
 
         // Making sure that it's a grass tile
-        if (capital->kind == TILE_WATER)
+        if (is_water(tile_x, tile_y))
             place_grass(tile_x, tile_y);
 
         capture_tile(capital, player_id);
@@ -141,8 +160,9 @@ void create_tilemap()
 
         capital->is_capital = true;
         capital->soldiers = create_soldiers(tile_x, tile_y, SOLDIER_KNIGHT);
-        capital->soldiers->remaining_moves = MOVES_PER_SOLDIER;
-
+        capital->soldiers->remaining_moves = SOLDIER_MOVES[SOLDIER_KNIGHT];
+        
+        ctx.players[player_id].total_units = KNIGHTS_PER_TRAIN;
         ctx.players[player_id].coins = STARTING_COINS;
 
         FOREACH_OFFSET(tile_y, TOTAL_NEIGHBOURS, j) 
@@ -155,7 +175,13 @@ void create_tilemap()
 
             // Make sure that land exists
             if (is_water(x, y))
+            {
                 place_grass(x, y);
+
+                // Fix some visual glitches
+                if (y > TILEMAP_HEIGHT - 3 || y > tile_y && is_valid_tile(x, y + 2) && is_water(x, y + 2))
+                    set_tile_kind(x, y, TILE_COAST);
+            }
 
             capture_tile(neighbour, player_id);
         }
@@ -172,39 +198,24 @@ void create_tilemap()
 
 void next_turn()
 {
+    // Applying old player's income
     player_t* old_player = &ctx.players[ctx.current_player_id];
+    old_player->coins += old_player->income;
 
-    // Calculating previous player's income
-    unsigned int total_tiles = 0;
-    unsigned int total_units = 0;
-
+    // Resetting soldier moves
     MAP_FOREACH(x, y)
     {
         tile_t* tile = &ctx.tilemap[y][x];
-        if (tile->owner_id != ctx.current_player_id) continue;
 
-        if (tile->kind == TILE_FARM)
-            old_player->coins += FARM_INCOME;
-
-        else if (tile->kind == TILE_CITY)
-            old_player->coins += CITY_INCOME;
-
-        else if (tile->kind == TILE_GRASS || tile->kind == TILE_FOREST)
-            total_tiles++;
-
-        if (tile->soldiers)
-        {
-            tile->soldiers->remaining_moves = tile->soldiers->kind == SOLDIER_SABOTEUR ? MOVES_PER_SABOTEUR : MOVES_PER_SOLDIER;
-            total_units += tile->soldiers->units;
-        }
+        if (tile->soldiers && tile->owner_id == ctx.current_player_id)
+            tile->soldiers->remaining_moves = SOLDIER_MOVES[tile->soldiers->kind];
     }
-
-    old_player->coins -= (total_units / 10) * COST_PER_10_UNITS;
-    old_player->coins += total_tiles / TERRITORIES_PER_COIN;
 
     // Going to the next player
     ctx.current_player_id++;
     ctx.remaining_moves = MOVES_PER_TURN;
+
+    update_moves_label();
 
     if (ctx.current_player_id > TOTAL_PLAYERS - 1)
         ctx.current_player_id = 0;
@@ -272,6 +283,8 @@ void decrement_move()
     // Check if the turn has ended
     if (ctx.remaining_moves == 0)
         next_turn();
+
+    update_moves_label();
 }
 
 // Handles soldier selection and attacks
@@ -331,11 +344,11 @@ void handle_build(int tile_x, int tile_y, int choice)
     switch (choice)
     {
         // Farm creation
-        // TODO: I might have to find a better way of just manually writing numbers here, maybe an enum?
         case 0:
             if (tile->kind == TILE_GRASS && current_player->coins >= FARM_COST)
             {
                 current_player->coins -= FARM_COST;
+                current_player->total_farms++;
 
                 set_tile_kind(tile_x, tile_y, TILE_FARM);
                 update_stats();
@@ -343,9 +356,6 @@ void handle_build(int tile_x, int tile_y, int choice)
             }
 
             break;
-
-        case 1:
-            puts("Building walls");
     }
 }
 
@@ -367,7 +377,8 @@ void handle_train(int tile_x, int tile_y, int choice)
 
 void initialize_context()
 {
-    create_game(&ctx.game, "Hextinction", TOTAL_TILEMAP_WIDTH + PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT);
+    // Settings the frame rate to just 20, big performance boost
+    create_game(&ctx.game, "Hextinction", TOTAL_TILEMAP_WIDTH + PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT, 20);
     ctx.font = TTF_OpenFont("res/free_mono.ttf", 18);
 
     // Loading textures and audio
@@ -383,7 +394,7 @@ void initialize_context()
     create_animated_sprite(&ctx.explosion, load_texture("res/explosion.png"), 9, 100);
     set_transform_scale(&ctx.explosion.sprite.transform, 2);
 
-    ctx.current_player_id = -1; // Will be set to 0 after next turn
+    ctx.current_player_id = -1; // Will be set to 0 after initial next turn
     create_sprite(&ctx.turn_arrow, load_texture("res/arrow.png"));
 
     create_tilemap();
@@ -396,7 +407,7 @@ int main(int argc, char** argv)
 {
     srand(time(NULL));
     
-    // Initializing noise with seed coming from the arguments
+    // Initializing noise with seed coming from the arguments or a randomly generated one
     open_simplex_noise(argc > 1 ? atoi(argv[1]) : rand(), &ctx.noise_context);
 
     initialize_context();
@@ -404,15 +415,14 @@ int main(int argc, char** argv)
     // Collecting events and defining the game loop
     SDL_Event event;
 
-    simple_timer_t delta_timer;
-    start_timer(&delta_timer);
-
     for (;;)
     {
         while (SDL_PollEvent(&event))
         {
-            // Closing the game once an exit even has been received
+            // Closing the game once an exit event has been received
             if (event.type == SDL_QUIT) goto finish_game;
+
+            handle_event(&ctx.game, &event);
 
             if (event.type == SDL_MOUSEBUTTONDOWN)
             {
@@ -422,29 +432,24 @@ int main(int argc, char** argv)
                 if (!window_to_tile_position(&tile_x, &tile_y, event.button.x, event.button.y))
                     break;
 
+                tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
                     process_hex_dropdown(&ctx.build_dropdown, handle_build);
                     process_hex_dropdown(&ctx.train_dropdown, handle_train);
+
                     handle_click(tile_x, tile_y);
                 }
                 // Right click handling
                 else
                 {
-                    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
-
                     if (tile->kind == TILE_CITY)
-                        activate_dropdown(&ctx.train_dropdown, event.button.x, event.button.y);
-
-                    else
-                        activate_dropdown(&ctx.build_dropdown, event.button.x, event.button.y);
+                        activate_dropdown_at(&ctx.game, &ctx.train_dropdown, event.button.x, event.button.y);
+                    
+                    else if (tile->kind == TILE_GRASS)
+                        activate_dropdown_at(&ctx.game, &ctx.build_dropdown, event.button.x, event.button.y);
                 }
-            }
-
-            else if (event.type == SDL_MOUSEMOTION)
-            {
-                update_dropdown_highlight(&ctx.build_dropdown, event.motion.x, event.motion.y);
-                update_dropdown_highlight(&ctx.train_dropdown, event.motion.x, event.motion.y);
             }
 
             else if (event.type == SDL_KEYDOWN)
@@ -460,9 +465,6 @@ int main(int argc, char** argv)
                 }
             }
        }
-
-        // Getting delta time in seconds
-        float delta = restart_timer(&delta_timer) / 1000.0f;
 
         SDL_SetRenderDrawColor(ctx.game.renderer, 40, 40, 70, 255);
         SDL_RenderClear(ctx.game.renderer);
@@ -524,16 +526,14 @@ int main(int argc, char** argv)
         SDL_RenderFillRect(ctx.game.renderer, &ctx.panel_rect);
 
         render_sprite(&ctx.player_name.sprite, ctx.game.renderer);
+        render_sprite(&ctx.player_profile, ctx.game.renderer);
+        render_sprite(&ctx.player_description.sprite, ctx.game.renderer);
         render_sprite(&ctx.player_territories.sprite, ctx.game.renderer);
         render_sprite(&ctx.player_coins.sprite, ctx.game.renderer);
-        render_sprite(&ctx.player_description.sprite, ctx.game.renderer);
-        render_sprite(&ctx.player_profile, ctx.game.renderer);
+        render_sprite(&ctx.player_income.sprite, ctx.game.renderer);
+        render_sprite(&ctx.player_moves.sprite, ctx.game.renderer);
 
-        render_dropdown(&ctx.build_dropdown, ctx.game.renderer);
-        render_dropdown(&ctx.train_dropdown, ctx.game.renderer);
-
-        SDL_RenderPresent(ctx.game.renderer);
-        SDL_Delay(FRAME_DELAY);
+        finish_game_rendering(&ctx.game);
     }
 
 finish_game:

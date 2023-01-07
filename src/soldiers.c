@@ -22,7 +22,6 @@ void update_soldiers_texture(soldiers_t* soldiers)
     }
     else
     {
-        // TODO: Make the texture change depending on the units (10-30 soldiers, 30-60 cannon or something like that)
         soldiers->source_rect.x = soldiers->kind * TILE_WIDTH;
     }
 }
@@ -77,9 +76,18 @@ bool try_to_train_soldiers(int tile_x, int tile_y, soldier_kind_e choice)
 void capture_tile(tile_t* dest, int sender_id)
 {
     ctx.players[sender_id].total_territories++;
+    bool was_neutral = dest->owner_id < 0;
 
-    if (dest->owner_id >= 0)
-        ctx.players[dest->owner_id].total_territories--;
+    if (dest->kind == TILE_CITY)
+    {
+        ctx.players[sender_id].total_cities++;
+        
+        if (!was_neutral)
+            ctx.players[dest->owner_id].total_cities--;
+    }
+
+    if (!was_neutral)
+        ctx.players[dest->owner_id].total_territories--; 
 
     dest->owner_id = sender_id;
 }
@@ -159,7 +167,9 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     if (soldiers->remaining_moves == 0) return false;
 
     tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+
     int sender_id = soldiers->current_tile->owner_id;
+    int enemy_id = tile->owner_id;
 
     // Check if the soldiers are trying to move to a sea tile without being on a port when on land
     if (is_water(tile_x, tile_y) && (soldiers->current_tile->kind != TILE_PORT && soldiers->current_tile->kind != TILE_WATER))
@@ -172,11 +182,14 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 
     if (!tile->soldiers)
     {
-        if (tile->owner_id != sender_id)
+        if (enemy_id != sender_id)
         {
             // Destroy enemy farm on capture
             if (tile->kind == TILE_FARM)
+            {
+                ctx.players[enemy_id].total_farms--;
                 set_tile_kind(tile_x, tile_y, TILE_GRASS);
+            }
             
             else if (tile->kind == TILE_FISH)
             {
@@ -225,10 +238,10 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     }
 
      // Check if it's just a move between soldiers of the same player
-    if (tile->owner_id == sender_id)
+    if (enemy_id == sender_id)
     {
-        // Saboteurs cannot combine with other saboteurs or knights
-        if (tile->soldiers->kind == SOLDIER_SABOTEUR || soldiers->kind == SOLDIER_SABOTEUR) return false;
+        // Can only combine soldiers of the same type
+        if (tile->soldiers->kind != soldiers->kind) return false;
 
         if (tile->soldiers->units == MAX_UNITS) return false;
 
@@ -272,7 +285,7 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         if (tile->is_capital)
         {
             tile->is_capital = false;
-            conquer_player(sender_id, tile->owner_id);
+            conquer_player(sender_id, enemy_id);
         }
         else
             capture_tile(tile, sender_id);
@@ -280,9 +293,8 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         // If the enemy was a saboteur, make turn him into a knight
         if (tile->soldiers->kind == SOLDIER_SABOTEUR)
         {
-            destroy_soldiers(tile->soldiers);
-        
-            tile->soldiers = create_soldiers(tile_x, tile_y, SOLDIER_KNIGHT);
+            create_label(&tile->soldiers->units_label, ctx.font, 0);
+            tile->soldiers->kind = SOLDIER_KNIGHT;
         }
 
         set_soldier_units(tile->soldiers, -attack_result);
@@ -290,6 +302,9 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 
         capture_empty_neighbours(sender_id, tile_x, tile_y);
     }
+
+    ctx.players[sender_id].total_units -= attack_result;
+    ctx.players[enemy_id].total_units += attack_result;
 
     activate_explosion(tile->dest_rect.x, tile->dest_rect.y);
     

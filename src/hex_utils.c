@@ -62,8 +62,10 @@ void assign_tile_position(int tile_x, int tile_y)
 
 void process_hex_dropdown(dropdown_t* dropdown, dropdown_handler handler)
 {
-    int choice = dropdown_get_selected(dropdown);
-    if (choice < 0) return;
+    int choice = get_dropdown_choice(&ctx.game, dropdown);
+
+    if (choice < 0)
+        return;
 
     int tile_x, tile_y;
                 

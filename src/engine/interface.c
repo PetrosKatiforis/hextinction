@@ -81,9 +81,8 @@ void create_dropdown(dropdown_t* dropdown, SDL_Renderer* renderer, TTF_Font* fon
     dropdown->background = (SDL_Rect) {0, 0, dropdown->width + 2 * DROPDOWN_PADDING, dropdown->height + 2 * DROPDOWN_PADDING};
 }
 
-void activate_dropdown(dropdown_t* dropdown, int x, int y)
+void set_dropdown_position(dropdown_t* dropdown, int x, int y)
 {
-    dropdown->is_active = true;
     dropdown->selected_index = -1;
 
     dropdown->background.x = x;
@@ -99,19 +98,9 @@ void activate_dropdown(dropdown_t* dropdown, int x, int y)
     }
 }
 
-int dropdown_get_selected(dropdown_t* dropdown)
+// Positions highlight and updates the selected index
+void on_dropdown_mouse_move(dropdown_t* dropdown, int x, int y)
 {
-    if (!dropdown->is_active) return -1;
-
-    dropdown->is_active = false;
-    
-    return dropdown->selected_index;
-}
-
-void update_dropdown_highlight(dropdown_t* dropdown, int x, int y)
-{
-    if (!dropdown->is_active) return;
-
     if (is_point_inside(&dropdown->background, x, y))
     {
         dropdown->selected_index = (y - dropdown->background.y - DROPDOWN_PADDING) / dropdown->items[0].sprite.transform.rect.h;
@@ -132,8 +121,6 @@ void update_dropdown_highlight(dropdown_t* dropdown, int x, int y)
 
 void render_dropdown(dropdown_t* dropdown, SDL_Renderer* renderer)
 {
-    if (!dropdown->is_active) return;
-
     SDL_SetRenderDrawColor(renderer, dropdown_background.r, dropdown_background.g, dropdown_background.b, 255);
     SDL_RenderFillRect(renderer, &dropdown->background);
 

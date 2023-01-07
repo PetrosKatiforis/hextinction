@@ -13,22 +13,20 @@
 
 #define TILE_WIDTH 34
 #define TILE_HEIGHT 32
-#define CITY_NAME_LEN 30
 
 // Constants that should be configured by the programmer
-#define FRAMES_PER_SECOND 20
 #define TOTAL_PLAYERS 2
 #define KNIGHTS_PER_TRAIN 10
 #define MAX_UNITS 100
-#define FARM_COST 20
-#define FARM_INCOME 3
+#define FARM_COST 40
+#define FARM_INCOME 4
 #define CITY_INCOME 1
 #define FISH_INCOME 5
 #define STARTING_COINS 1000
-#define COST_PER_10_UNITS 4
-#define MOVES_PER_SOLDIER 2
-#define MOVES_PER_SABOTEUR 5
 #define MOVES_PER_TURN 6
+
+// How much will units cost per turn
+#define COST_PER_10_UNITS 4
 
 // For every TERRITORIES_PER_COIN captured tiles, the player receives one coin
 #define TERRITORIES_PER_COIN 25
@@ -47,6 +45,8 @@
 
 static SDL_Color highlight_color = {255, 255, 255, 80};
 static SDL_Color panel_color = {30, 30, 30, 255};
+
+#define CITY_NAME_LEN 30
 
 static char city_names[][CITY_NAME_LEN] = {
     "Athens", "Thessaloniki", "Ankara", "London", "Paris", "Islamabad",
@@ -88,9 +88,13 @@ static int capital_positions[TOTAL_PLAYERS][2] = {
 typedef struct
 {
     bool is_dead;
+    int coins;
 
     unsigned int total_territories;
-    int coins;
+    unsigned int total_units;
+    unsigned int total_cities;
+    unsigned int total_farms;
+    int income;
 } player_t;
 
 // This is all the game state, accumulated in one big struct
@@ -133,6 +137,8 @@ typedef struct
     label_t player_description;
     label_t player_coins;
     label_t player_territories;
+    label_t player_income;
+    label_t player_moves;
 
     sprite_t player_profile;
     SDL_Rect panel_rect;

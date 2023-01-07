@@ -1,4 +1,4 @@
-#include "math.h"
+#include "custom_math.h"
 #include <math.h>
 
 // This will be used for normalization
@@ -39,6 +39,18 @@ void divide_vectors(vec2* first, vec2* second, vec2* result)
 {
     result->x = first->x / second->x;
     result->y = first->y / second->y;
+}
+
+bool is_point_inside(SDL_Rect* rect, int x, int y)
+{
+    // Just a basic algorithm for rectangles
+    return x > rect->x && x < rect->x + rect->w && y > rect->y && y < rect->y + rect->h;
+}
+
+int get_distance(int x, int y, int other_x, int other_y)
+{
+    // Basically getting the magnitude of their connecting vector
+    return sqrt(pow(other_x - x, 2) + pow(other_y - y, 2));
 }
 
 

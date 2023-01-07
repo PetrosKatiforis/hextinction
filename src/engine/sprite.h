@@ -3,7 +3,7 @@
 
 #include <SDL.h>
 #include <SDL_ttf.h>
-#include "math.h"
+#include "custom_math.h"
 #include "timers.h"
 
 // Transforms are used for things that can be rendered

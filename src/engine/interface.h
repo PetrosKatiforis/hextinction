@@ -25,16 +25,15 @@ void destroy_label(label_t* label);
 
 // Dropdown menus
 static SDL_Color dropdown_background = {20, 20, 20, 255};
-static SDL_Color dropdown_highlight = {120, 120, 120, 255};
+static SDL_Color dropdown_highlight = {70, 70, 70, 255};
 
-#define DROPDOWN_PADDING 10
+#define DROPDOWN_PADDING 6
 
 typedef struct
 {
     label_t* items;
     unsigned int length, width, height;
     int selected_index;
-    bool is_active;
 
     SDL_Rect background;
     SDL_Rect highlight;
@@ -43,11 +42,8 @@ typedef struct
 // ... is a va_list containing all label text strings
 void create_dropdown(dropdown_t* dropdown, SDL_Renderer* renderer, TTF_Font* font, unsigned int total_items, ...);
 
-void activate_dropdown(dropdown_t* dropdown, int x, int y);
-
-// Returns the index of the item that was clicked, otherwise -1
-int dropdown_get_selected(dropdown_t* dropdown);
-void update_dropdown_highlight(dropdown_t* dropdown, int x, int y);
+void set_dropdown_position(dropdown_t* dropdown, int x, int y);
+void on_dropdown_mouse_move(dropdown_t* dropdown, int x, int y);
 
 void render_dropdown(dropdown_t* dropdown, SDL_Renderer* renderer);
 

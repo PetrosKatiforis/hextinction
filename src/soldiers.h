@@ -14,8 +14,9 @@ typedef enum
     NUM_SOLDIERS,
 } soldier_kind_e;
 
-// Constant cost of training per soldier kind
+// Constant cost of training per soldier kind and starting moves
 static int SOLDIER_COSTS[NUM_SOLDIERS] = {10, 20};
+static int SOLDIER_MOVES[NUM_SOLDIERS] = {2, 5};
 
 typedef struct soldiers_t
 {
