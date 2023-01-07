@@ -46,12 +46,18 @@ void create_interface()
 
     ctx.panel_rect = (SDL_Rect) {TOTAL_TILEMAP_WIDTH, 0, PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT};
 
-    // How I want the API to look
+    // Creating the dropdowns
     char farm_text[20], walls_text[20];
     sprintf(farm_text, "Build Farm (%d Coins)", FARM_COST);
     sprintf(walls_text, "Build Walls (%d Coins)", FARM_COST);
 
     create_dropdown(&ctx.build_dropdown, ctx.game.renderer, ctx.font, 2, farm_text, walls_text);
+
+    char knight_text[40], saboteur_text[40];
+    sprintf(knight_text, "Train Knight (%d Coins)", SOLDIER_COSTS[SOLDIER_KNIGHT]);
+    sprintf(saboteur_text, "Train Saboteur (%d Coins)", SOLDIER_COSTS[SOLDIER_SABOTEUR]);
+
+    create_dropdown(&ctx.train_dropdown, ctx.game.renderer, ctx.font, 2, knight_text, saboteur_text);
 }
 
 void update_stats()
@@ -64,7 +70,6 @@ void update_stats()
     set_label_content(&ctx.player_territories, ctx.game.renderer, territories);
     set_label_content(&ctx.player_coins, ctx.game.renderer, coins);
 }
-
 
 void update_interface()
 {
@@ -107,7 +112,7 @@ void create_tilemap()
         {
             create_tile(x, y, chance_one_in(7) ? TILE_FOREST : TILE_GRASS);
         }
-        else if (value < FISH_MAX && chance_one_in(5))
+        else if (chance_one_in(10))
         {
             create_tile(x, y, TILE_FISH);
         }
@@ -135,7 +140,7 @@ void create_tilemap()
         create_city(tile_x, tile_y);
 
         capital->is_capital = true;
-        capital->soldiers = create_soldiers(tile_x, tile_y);
+        capital->soldiers = create_soldiers(tile_x, tile_y, SOLDIER_KNIGHT);
         capital->soldiers->remaining_moves = MOVES_PER_SOLDIER;
 
         ctx.players[player_id].coins = STARTING_COINS;
@@ -189,7 +194,7 @@ void next_turn()
 
         if (tile->soldiers)
         {
-            tile->soldiers->remaining_moves = MOVES_PER_SOLDIER;
+            tile->soldiers->remaining_moves = tile->soldiers->kind == SOLDIER_SABOTEUR ? MOVES_PER_SABOTEUR : MOVES_PER_SOLDIER;
             total_units += tile->soldiers->units;
         }
     }
@@ -224,8 +229,7 @@ void next_turn()
     update_interface();
 
     // Positioning turn arrow
-    int capital_position[2];
-    memcpy(capital_position, &capital_positions[ctx.current_player_id], 2 * sizeof(int));
+    int* capital_position = capital_positions[ctx.current_player_id];
 
     tile_t* capital = &ctx.tilemap[capital_position[1]][capital_position[0]];
 
@@ -300,15 +304,13 @@ void handle_click(int tile_x, int tile_y)
 
         window_to_tile_position(&source_x, &source_y, source_tile->dest_rect.x, source_tile->dest_rect.y);
         
-        if (!is_neighbouring_tile(source_x, source_y, tile_x, tile_y))
+        /*if (!is_neighbouring_tile(source_x, source_y, tile_x, tile_y))
         {
             clear_selected_soldiers();
             
             return;
-        }
+        }*/
 
-        set_label_color(&ctx.selected_soldiers->units_label, ctx.game.renderer, (SDL_Color) {255, 255, 255, 255});
-        
         if (move_soldiers(ctx.selected_soldiers, tile_x, tile_y))
         {
             update_stats();
@@ -319,16 +321,8 @@ void handle_click(int tile_x, int tile_y)
     }
 }
 
-void process_build_dropdown_choice()
+void handle_build(int tile_x, int tile_y, int choice)
 {
-    unsigned int choice = dropdown_get_selected(&ctx.build_dropdown);
-
-    int tile_x, tile_y;
-                
-    // Getting the coordinates of the tile that was right clicked when the dropdown showed up
-    if (!window_to_tile_position(&tile_x, &tile_y, ctx.build_dropdown.background.x, ctx.build_dropdown.background.y))
-        return;
-
     tile_t* tile = &ctx.tilemap[tile_y][tile_x];
     if (tile->owner_id != ctx.current_player_id) return;
     
@@ -355,35 +349,19 @@ void process_build_dropdown_choice()
     }
 }
 
-void try_to_train_soldiers(int tile_x, int tile_y)
+void handle_train(int tile_x, int tile_y, int choice)
 {
     tile_t* tile = &ctx.tilemap[tile_y][tile_x];
     if (tile->owner_id != ctx.current_player_id) return;
     
     player_t* current_player = &ctx.players[ctx.current_player_id];
- 
-    if (tile->kind == TILE_CITY)
+
+    // Using choice index as enum
+    if (try_to_train_soldiers(tile_x, tile_y, choice))
     {
-        if (current_player->coins >= TRAINING_COST)
-        {
-            if (!tile->soldiers)
-                tile->soldiers = create_soldiers(tile_x, tile_y);
-
-            else
-            {
-                if (tile->soldiers->units == MAX_UNITS) return;
-
-                set_soldier_units(tile->soldiers, tile->soldiers->units + UNITS_PER_TRAIN);
-            }
-
-            tile->soldiers->remaining_moves = 0;
-
-            current_player->coins -= TRAINING_COST;
-            
-            play_audio(ctx.military_sfx);
-            decrement_move();
-            update_stats();
-        }
+        play_audio(ctx.military_sfx);
+        decrement_move();
+        update_stats();
     }
 }
 
@@ -446,7 +424,8 @@ int main(int argc, char** argv)
 
                 if (event.button.button == SDL_BUTTON_LEFT)
                 {
-                    process_build_dropdown_choice();
+                    process_hex_dropdown(&ctx.build_dropdown, handle_build);
+                    process_hex_dropdown(&ctx.train_dropdown, handle_train);
                     handle_click(tile_x, tile_y);
                 }
                 // Right click handling
@@ -455,7 +434,8 @@ int main(int argc, char** argv)
                     tile_t* tile = &ctx.tilemap[tile_y][tile_x];
 
                     if (tile->kind == TILE_CITY)
-                        try_to_train_soldiers(tile_x, tile_y);
+                        activate_dropdown(&ctx.train_dropdown, event.button.x, event.button.y);
+
                     else
                         activate_dropdown(&ctx.build_dropdown, event.button.x, event.button.y);
                 }
@@ -464,6 +444,7 @@ int main(int argc, char** argv)
             else if (event.type == SDL_MOUSEMOTION)
             {
                 update_dropdown_highlight(&ctx.build_dropdown, event.motion.x, event.motion.y);
+                update_dropdown_highlight(&ctx.train_dropdown, event.motion.x, event.motion.y);
             }
 
             else if (event.type == SDL_KEYDOWN)
@@ -511,19 +492,9 @@ int main(int argc, char** argv)
         MAP_FOREACH(x, y)
         {
             tile_t* tile = &ctx.tilemap[y][x];
-
+            
             if (tile->soldiers)
-            {
-                // Visual indication that the soldier cannot be moved
-                if (tile->soldiers->remaining_moves == 0)
-                    SDL_SetTextureColorMod(ctx.soldiers_texture, 160, 160, 160);
-                else
-                    SDL_SetTextureColorMod(ctx.soldiers_texture, 255, 255, 255);
-
-                SDL_RenderCopy(ctx.game.renderer, ctx.soldiers_texture, &tile->soldiers->source_rect, &tile->dest_rect);
-
-                render_sprite(&tile->soldiers->units_label.sprite, ctx.game.renderer);
-            }
+                render_soldiers(tile->soldiers, ctx.game.renderer, ctx.soldiers_texture);
         }
 
         // Drawing preview tiles
@@ -559,6 +530,7 @@ int main(int argc, char** argv)
         render_sprite(&ctx.player_profile, ctx.game.renderer);
 
         render_dropdown(&ctx.build_dropdown, ctx.game.renderer);
+        render_dropdown(&ctx.train_dropdown, ctx.game.renderer);
 
         SDL_RenderPresent(ctx.game.renderer);
         SDL_Delay(FRAME_DELAY);

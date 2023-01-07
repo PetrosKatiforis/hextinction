@@ -59,3 +59,17 @@ void assign_tile_position(int tile_x, int tile_y)
 
     tile->dest_rect = (SDL_Rect) {offset + tile_x * (TILE_WIDTH + 16), tile_y * TILE_HEIGHT / 2, TILE_WIDTH, TILE_HEIGHT};
 }
+
+void process_hex_dropdown(dropdown_t* dropdown, dropdown_handler handler)
+{
+    int choice = dropdown_get_selected(dropdown);
+    if (choice < 0) return;
+
+    int tile_x, tile_y;
+                
+    // Getting the coordinates of the tile that was right clicked when the dropdown showed up
+    if (!window_to_tile_position(&tile_x, &tile_y, dropdown->background.x, dropdown->background.y))
+        return;
+
+    handler(tile_x, tile_y, choice);
+}

@@ -18,12 +18,12 @@ void update_soldiers_texture(soldiers_t* soldiers)
     // If it's sea, pick a ship texture
     if (soldiers->current_tile->kind == TILE_WATER)
     {
-        soldiers->source_rect.x = (soldiers->current_tile->owner_id + 1) * TILE_WIDTH;
+        soldiers->source_rect.x = (soldiers->current_tile->owner_id + 2) * TILE_WIDTH;
     }
     else
     {
         // TODO: Make the texture change depending on the units (10-30 soldiers, 30-60 cannon or something like that)
-        soldiers->source_rect.x = 0;
+        soldiers->source_rect.x = soldiers->kind * TILE_WIDTH;
     }
 }
 
@@ -41,6 +41,38 @@ void set_soldier_units(soldiers_t* soldiers, unsigned int units)
     update_soldiers_texture(soldiers);
 }
 
+bool try_to_train_soldiers(int tile_x, int tile_y, soldier_kind_e choice)
+{
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+    player_t* current_player = &ctx.players[ctx.current_player_id];
+    
+    int cost = SOLDIER_COSTS[choice];
+    if (current_player->coins < cost) return false;
+
+    switch (choice)
+    {
+        case SOLDIER_SABOTEUR:
+            if (tile->soldiers) return false;
+
+            tile->soldiers = create_soldiers(tile_x, tile_y, choice);
+
+            break;
+
+        case SOLDIER_KNIGHT:
+            if (!tile->soldiers)
+                create_soldiers(tile_x, tile_y, choice);
+            else
+                set_soldier_units(tile->soldiers, tile->soldiers->units + KNIGHTS_PER_TRAIN);
+
+            break;
+    }
+
+    current_player->coins -= cost;    
+    tile->soldiers->remaining_moves = 0;
+    
+    return true;
+}
+
 // Captures tile and adjusts total territories
 void capture_tile(tile_t* dest, int sender_id)
 {
@@ -52,21 +84,26 @@ void capture_tile(tile_t* dest, int sender_id)
     dest->owner_id = sender_id;
 }
 
-soldiers_t* create_soldiers(int tile_x, int tile_y)
+soldiers_t* create_soldiers(int tile_x, int tile_y, soldier_kind_e kind)
 {
     // Soldiers are malloced so that they can be passed through tiles without copying them
     soldiers_t* soldiers = malloc(sizeof(soldiers_t));
 
-    soldiers->source_rect = (SDL_Rect) {0, 0, TILE_WIDTH, TILE_HEIGHT};
+    soldiers->kind = kind;
+    soldiers->source_rect = (SDL_Rect) {kind * TILE_WIDTH, 0, TILE_WIDTH, TILE_HEIGHT};
 
     // Have to do this before place_soldiers because we must first be able to initialize the text
     soldiers->current_tile = &ctx.tilemap[tile_y][tile_x];
 
     // When soldiers are created, they need to wait for the next turn to be used
     soldiers->remaining_moves = 0;
+    soldiers->units = 0;
 
-    create_label(&soldiers->units_label, ctx.font, 0);
-    set_soldier_units(soldiers, UNITS_PER_TRAIN);
+    if (kind == SOLDIER_KNIGHT)
+    {
+        create_label(&soldiers->units_label, ctx.font, 0);
+        set_soldier_units(soldiers, KNIGHTS_PER_TRAIN);
+    }
 
     // Will position the text too
     place_soldiers(soldiers, &ctx.tilemap[tile_y][tile_x]);
@@ -135,8 +172,6 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 
     if (!tile->soldiers)
     {
-        soldiers->current_tile->soldiers = NULL;
-
         if (tile->owner_id != sender_id)
         {
             // Destroy enemy farm on capture
@@ -149,17 +184,27 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
                 ctx.players[sender_id].coins += FISH_INCOME;
             }
 
-            if (tile->is_capital)
+            // Saboteurs can only claim empty land and farms
+            if (soldiers->kind == SOLDIER_SABOTEUR)
+            {
+                if (tile->kind == TILE_CITY) return false;
+
+                capture_tile(tile, sender_id);
+            }
+            else if (tile->is_capital)
                 conquer_player(sender_id, tile->owner_id);
 
             else
                 capture_tile(tile, sender_id);
         }
 
+        soldiers->current_tile->soldiers = NULL;
+
         place_soldiers(soldiers, tile);
         soldiers->remaining_moves = new_remaining_moves;
 
-        capture_empty_neighbours(sender_id, tile_x, tile_y);
+        if (soldiers->kind != SOLDIER_SABOTEUR)
+            capture_empty_neighbours(sender_id, tile_x, tile_y);
 
         if (will_change_surface)
         {
@@ -182,6 +227,9 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
      // Check if it's just a move between soldiers of the same player
     if (tile->owner_id == sender_id)
     {
+        // Saboteurs cannot combine with other saboteurs or knights
+        if (tile->soldiers->kind == SOLDIER_SABOTEUR || soldiers->kind == SOLDIER_SABOTEUR) return false;
+
         if (tile->soldiers->units == MAX_UNITS) return false;
 
         unsigned int new_units = tile->soldiers->units + soldiers->units;
@@ -195,9 +243,9 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         {
             set_soldier_units(tile->soldiers, MAX_UNITS);
             set_soldier_units(soldiers, new_units - MAX_UNITS);
-        }
 
-        soldiers->remaining_moves = new_remaining_moves;
+            soldiers->remaining_moves = new_remaining_moves;
+        }
 
         return true;
     }
@@ -213,7 +261,6 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     else if (attack_result > 0)
     {
         set_soldier_units(tile->soldiers, attack_result);
-        tile->soldiers->remaining_moves = new_remaining_moves;
     }
     // This is a victory
     else
@@ -229,6 +276,14 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         }
         else
             capture_tile(tile, sender_id);
+
+        // If the enemy was a saboteur, make turn him into a knight
+        if (tile->soldiers->kind == SOLDIER_SABOTEUR)
+        {
+            destroy_soldiers(tile->soldiers);
+        
+            tile->soldiers = create_soldiers(tile_x, tile_y, SOLDIER_KNIGHT);
+        }
 
         set_soldier_units(tile->soldiers, -attack_result);
         tile->soldiers->remaining_moves = new_remaining_moves;
@@ -272,6 +327,20 @@ void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     }
 }
 
+void render_soldiers(soldiers_t* soldiers, SDL_Renderer* renderer, SDL_Texture* soldiers_texture)
+{
+    // Visual indication that the soldier cannot be moved
+    if (soldiers->remaining_moves == 0)
+        SDL_SetTextureColorMod(soldiers_texture, 160, 160, 160);
+    else
+        SDL_SetTextureColorMod(soldiers_texture, 255, 255, 255);
+
+    SDL_RenderCopy(renderer, soldiers_texture, &soldiers->source_rect, &soldiers->current_tile->dest_rect);
+
+    if (soldiers->kind == SOLDIER_KNIGHT)
+        render_sprite(&soldiers->units_label.sprite, renderer);
+}
+
 void clear_selected_soldiers()
 {
     // Clearing highlighted tiles
@@ -281,7 +350,9 @@ void clear_selected_soldiers()
 
 void destroy_soldiers(soldiers_t* soldiers)
 {
-    destroy_label(&soldiers->units_label);
+    if (soldiers->kind == SOLDIER_KNIGHT)
+        destroy_label(&soldiers->units_label);
+
     soldiers->current_tile->soldiers = NULL;
 
     free(soldiers);

@@ -5,6 +5,7 @@
 #define TOTAL_HIGHLIGHTED 18
 
 #include "context.h"
+#include "engine/interface.h"
 
 /*
  * Although I could place all these in tile.h I created a unique file for them
@@ -51,5 +52,11 @@ bool is_valid_tile(int tile_x, int tile_y);
 
 double get_noise_value(int tile_x, int tile_y);
 void assign_tile_position(int tile_x, int tile_y);
+
+
+typedef void (*dropdown_handler) (int tile_x, int tile_y, int choice_index);
+
+// Used for dropdowns that have to do with tiles, must be called after every window click
+void process_hex_dropdown(dropdown_t* dropdown, dropdown_handler handler);
 
 #endif

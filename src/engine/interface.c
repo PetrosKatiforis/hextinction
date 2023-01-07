@@ -101,9 +101,10 @@ void activate_dropdown(dropdown_t* dropdown, int x, int y)
 
 int dropdown_get_selected(dropdown_t* dropdown)
 {
+    if (!dropdown->is_active) return -1;
+
     dropdown->is_active = false;
     
-    // selected_index is set to -1 when no item is selected
     return dropdown->selected_index;
 }
 

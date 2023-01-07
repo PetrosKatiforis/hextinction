@@ -6,6 +6,17 @@
 // Forward decleration
 struct tile_t;
 
+typedef enum
+{
+    SOLDIER_KNIGHT,
+    SOLDIER_SABOTEUR,
+
+    NUM_SOLDIERS,
+} soldier_kind_e;
+
+// Constant cost of training per soldier kind
+static int SOLDIER_COSTS[NUM_SOLDIERS] = {10, 20};
+
 typedef struct soldiers_t
 {
     unsigned int units;
@@ -16,10 +27,11 @@ typedef struct soldiers_t
     // Used to determine soldiers texture
     SDL_Rect source_rect;
 
+    soldier_kind_e kind;
     struct tile_t* current_tile;
 } soldiers_t;
 
-soldiers_t* create_soldiers(int tile_x, int tile_y);
+soldiers_t* create_soldiers(int tile_x, int tile_y, soldier_kind_e kind);
 void set_soldier_units(soldiers_t* soldiers, unsigned int units);
 
 // Just places the soldiers on an empty tile (used by initialization)
@@ -29,8 +41,12 @@ void place_soldiers(soldiers_t* soldiers, struct tile_t* tile);
 // Returns true if the attacker won territory
 bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y);
 
+bool try_to_train_soldiers(int tile_x, int tile_y, soldier_kind_e choice);
+
 // Includes validation too
 void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y);
+
+void render_soldiers(soldiers_t* soldiers, SDL_Renderer* renderer, SDL_Texture* soldiers_texture);
 
 // Sets the tile owner to sender_id and adjusts total territories
 void capture_tile(struct tile_t* tile, int sender_id);

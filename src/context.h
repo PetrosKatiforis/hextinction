@@ -18,20 +18,20 @@
 // Constants that should be configured by the programmer
 #define FRAMES_PER_SECOND 20
 #define TOTAL_PLAYERS 2
-#define UNITS_PER_TRAIN 10
-#define TRAINING_COST 10
+#define KNIGHTS_PER_TRAIN 10
 #define MAX_UNITS 100
-#define FARM_COST 10
+#define FARM_COST 20
 #define FARM_INCOME 3
 #define CITY_INCOME 1
 #define FISH_INCOME 5
 #define STARTING_COINS 10
-#define COST_PER_10_UNITS 2
+#define COST_PER_10_UNITS 4
 #define MOVES_PER_SOLDIER 2
+#define MOVES_PER_SABOTEUR 5
 #define MOVES_PER_TURN 6
 
 // For every TERRITORIES_PER_COIN captured tiles, the player receives one coin
-#define TERRITORIES_PER_COIN 10
+#define TERRITORIES_PER_COIN 25
 
 #define TILEMAP_WIDTH 20
 #define TILEMAP_HEIGHT 34 
@@ -41,7 +41,6 @@
 // Simplex noise generation variables
 #define FOREST_START 0.3
 #define LAND_START -0.3
-#define FISH_MAX -0.5
 
 // It's ok if it's a bit more than the real value
 #define TOTAL_LABELS 3 * TILEMAP_HEIGHT
@@ -107,6 +106,7 @@ typedef struct
     audio_t military_sfx;
     animated_sprite_t explosion;
     dropdown_t build_dropdown;
+    dropdown_t train_dropdown;
 
     SDL_Texture* tilemap_texture;
     SDL_Texture* border_texture;
