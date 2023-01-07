@@ -56,24 +56,4 @@ void play_animated_sprite(animated_sprite_t* anim_sprite);
 
 void render_animated_sprite(animated_sprite_t* anim_sprite, SDL_Renderer* renderer);
 
-
-// Labels will be defined as sprites as well
-typedef struct
-{
-    sprite_t sprite;
-
-    TTF_Font* font;
-    SDL_Color color;
-
-    char* content;
-    unsigned int wrap_length;
-} label_t;
-
-// Leave wrap_length to 0 for default rendering
-void create_label(label_t* label, TTF_Font* font, unsigned int wrap_length);
-
-void set_label_content(label_t* label, SDL_Renderer* renderer, const char* content);
-void set_label_color(label_t* label, SDL_Renderer* renderer, SDL_Color color);
-void destroy_label(label_t* label);
-
 #endif

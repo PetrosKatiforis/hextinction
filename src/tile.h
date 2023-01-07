@@ -15,6 +15,7 @@ typedef enum
     TILE_CITY,
     TILE_PORT,
     TILE_FARM,
+    TILE_FISH,
     TILE_WATER,
 } tile_kind_e;
 
@@ -39,5 +40,7 @@ void create_tile(int tile_x, int tile_y, tile_kind_e kind);
 
 void set_tile_kind(int tile_x, int tile_y, tile_kind_e kind);
 void create_city(int tile_x, int tile_y);
+
+bool is_water(int tile_x, int tile_y);
 
 #endif

@@ -54,4 +54,10 @@ void create_city(int tile_x, int tile_y)
     ctx.total_cities++;
 }
 
+bool is_water(int tile_x, int tile_y)
+{
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
 
+    // Creating a special function for these because I might want more water tiles later on
+    return tile->kind == TILE_WATER || tile->kind == TILE_FISH;
+}

@@ -45,6 +45,13 @@ void create_interface()
     ctx.player_profile.transform.rect.w = ctx.player_profile.transform.rect.h = 128;
 
     ctx.panel_rect = (SDL_Rect) {TOTAL_TILEMAP_WIDTH, 0, PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT};
+
+    // How I want the API to look
+    char farm_text[20], walls_text[20];
+    sprintf(farm_text, "Build Farm (%d Coins)", FARM_COST);
+    sprintf(walls_text, "Build Walls (%d Coins)", FARM_COST);
+
+    create_dropdown(&ctx.build_dropdown, ctx.game.renderer, ctx.font, 2, farm_text, walls_text);
 }
 
 void update_stats()
@@ -78,27 +85,31 @@ void create_tilemap()
         double top = get_noise_value(x, y - 2);
 
         // All bottom tiles should look like coasts
-        if (value > LAND_THRESHOLD && y > TILEMAP_HEIGHT - 3)
+        if (value > LAND_START && y > TILEMAP_HEIGHT - 3)
         {
             create_tile(x, y, TILE_COAST);
         }
-        else if (value > LAND_THRESHOLD && bottom < LAND_THRESHOLD)
+        else if (value > LAND_START && bottom < LAND_START)
         {
             create_tile(x, y, chance_one_in(10) ? TILE_PORT : TILE_COAST);
         }
-        else if (value > LAND_THRESHOLD && top < LAND_THRESHOLD && chance_one_in(10))
+        else if (value > LAND_START && top < LAND_START && chance_one_in(10))
         {
             create_tile(x, y, TILE_PORT);
         }
         // Forests
-        else if (value > FOREST_THRESHOLD)
+        else if (value > FOREST_START)
         {
             create_tile(x, y, TILE_FOREST);
         }
         // Threshold for dirt placement
-        else if (value > LAND_THRESHOLD)
+        else if (value > LAND_START)
         {
             create_tile(x, y, chance_one_in(7) ? TILE_FOREST : TILE_GRASS);
+        }
+        else if (value < FISH_MAX && chance_one_in(5))
+        {
+            create_tile(x, y, TILE_FISH);
         }
         else
         {
@@ -125,6 +136,9 @@ void create_tilemap()
 
         capital->is_capital = true;
         capital->soldiers = create_soldiers(tile_x, tile_y);
+        capital->soldiers->remaining_moves = MOVES_PER_SOLDIER;
+
+        ctx.players[player_id].coins = STARTING_COINS;
 
         FOREACH_OFFSET(tile_y, TOTAL_NEIGHBOURS, j) 
         {
@@ -135,7 +149,7 @@ void create_tilemap()
             tile_t* neighbour = &ctx.tilemap[y][x];
 
             // Make sure that land exists
-            if (neighbour->kind == TILE_WATER)
+            if (is_water(x, y))
                 place_grass(x, y);
 
             capture_tile(neighbour, player_id);
@@ -143,10 +157,10 @@ void create_tilemap()
 
         // Generating a port at the bottom and at the top tile if the player needs a way to exit his isolated island 
         // NOTE: The player can still be blocked, but the probability is really low
-        if (is_valid_tile(tile_x, tile_y + 4) && ctx.tilemap[tile_y + 4][tile_x].kind == TILE_WATER)
+        if (is_valid_tile(tile_x, tile_y + 4) && is_water(tile_x, tile_y + 4))
             set_tile_kind(tile_x, tile_y + 2, TILE_PORT);
     
-        if (is_valid_tile(tile_x, tile_y - 4) && ctx.tilemap[tile_y - 4][tile_x].kind == TILE_WATER)
+        if (is_valid_tile(tile_x, tile_y - 4) && is_water(tile_x, tile_y - 4))
             set_tile_kind(tile_x, tile_y - 2, TILE_PORT);
     }
 }
@@ -157,6 +171,7 @@ void next_turn()
 
     // Calculating previous player's income
     unsigned int total_tiles = 0;
+    unsigned int total_units = 0;
 
     MAP_FOREACH(x, y)
     {
@@ -166,14 +181,21 @@ void next_turn()
         if (tile->kind == TILE_FARM)
             old_player->coins += FARM_INCOME;
 
-        else if (tile->kind == TILE_CITY && !tile->is_capital)
+        else if (tile->kind == TILE_CITY)
             old_player->coins += CITY_INCOME;
 
         else if (tile->kind == TILE_GRASS || tile->kind == TILE_FOREST)
             total_tiles++;
+
+        if (tile->soldiers)
+        {
+            tile->soldiers->remaining_moves = MOVES_PER_SOLDIER;
+            total_units += tile->soldiers->units;
+        }
     }
 
-    old_player->coins += floor(total_tiles / TERRITORIES_PER_COIN);
+    old_player->coins -= (total_units / 10) * COST_PER_10_UNITS;
+    old_player->coins += total_tiles / TERRITORIES_PER_COIN;
 
     // Going to the next player
     ctx.current_player_id++;
@@ -184,6 +206,20 @@ void next_turn()
 
     // Skip if the player is dead
     if (ctx.players[ctx.current_player_id].is_dead) return next_turn();
+
+    // Check if the player is bankrupt
+    if (ctx.players[ctx.current_player_id].coins < 0)
+    {
+        ctx.players[ctx.current_player_id].coins = 0;
+
+        MAP_FOREACH(x, y)
+        {
+            tile_t* tile = &ctx.tilemap[y][x];
+
+            if (tile->owner_id == ctx.current_player_id && tile->soldiers != NULL)
+                destroy_soldiers(tile->soldiers);
+        }
+    }
 
     update_interface();
 
@@ -249,6 +285,8 @@ void handle_click(int tile_x, int tile_y)
 
     if (!ctx.selected_soldiers)
     {
+        if (tile->soldiers->remaining_moves == 0) return;
+
         select_soldiers(tile->soldiers, tile_x, tile_y);
     }
     // Move soldiers
@@ -281,14 +319,49 @@ void handle_click(int tile_x, int tile_y)
     }
 }
 
-void handle_right_click(int tile_x, int tile_y)
+void process_build_dropdown_choice()
 {
-    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+    unsigned int choice = dropdown_get_selected(&ctx.build_dropdown);
 
+    int tile_x, tile_y;
+                
+    // Getting the coordinates of the tile that was right clicked when the dropdown showed up
+    if (!window_to_tile_position(&tile_x, &tile_y, ctx.build_dropdown.background.x, ctx.build_dropdown.background.y))
+        return;
+
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
     if (tile->owner_id != ctx.current_player_id) return;
+    
     player_t* current_player = &ctx.players[ctx.current_player_id];
 
-    // Tries to train soldiers
+    switch (choice)
+    {
+        // Farm creation
+        // TODO: I might have to find a better way of just manually writing numbers here, maybe an enum?
+        case 0:
+            if (tile->kind == TILE_GRASS && current_player->coins >= FARM_COST)
+            {
+                current_player->coins -= FARM_COST;
+
+                set_tile_kind(tile_x, tile_y, TILE_FARM);
+                update_stats();
+                decrement_move();
+            }
+
+            break;
+
+        case 1:
+            puts("Building walls");
+    }
+}
+
+void try_to_train_soldiers(int tile_x, int tile_y)
+{
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+    if (tile->owner_id != ctx.current_player_id) return;
+    
+    player_t* current_player = &ctx.players[ctx.current_player_id];
+ 
     if (tile->kind == TILE_CITY)
     {
         if (current_player->coins >= TRAINING_COST)
@@ -303,20 +376,14 @@ void handle_right_click(int tile_x, int tile_y)
                 set_soldier_units(tile->soldiers, tile->soldiers->units + UNITS_PER_TRAIN);
             }
 
+            tile->soldiers->remaining_moves = 0;
+
             current_player->coins -= TRAINING_COST;
             
             play_audio(ctx.military_sfx);
             decrement_move();
             update_stats();
         }
-    }
-    else if (tile->kind == TILE_GRASS && current_player->coins >= FARM_COST)
-    {
-        current_player->coins -= FARM_COST;
-
-        set_tile_kind(tile_x, tile_y, TILE_FARM);
-        update_stats();
-        decrement_move();
     }
 }
 
@@ -377,8 +444,26 @@ int main(int argc, char** argv)
                 if (!window_to_tile_position(&tile_x, &tile_y, event.button.x, event.button.y))
                     break;
 
-                if (event.button.button == SDL_BUTTON_LEFT) handle_click(tile_x, tile_y);
-                else handle_right_click(tile_x, tile_y);
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    process_build_dropdown_choice();
+                    handle_click(tile_x, tile_y);
+                }
+                // Right click handling
+                else
+                {
+                    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+
+                    if (tile->kind == TILE_CITY)
+                        try_to_train_soldiers(tile_x, tile_y);
+                    else
+                        activate_dropdown(&ctx.build_dropdown, event.button.x, event.button.y);
+                }
+            }
+
+            else if (event.type == SDL_MOUSEMOTION)
+            {
+                update_dropdown_highlight(&ctx.build_dropdown, event.motion.x, event.motion.y);
             }
 
             else if (event.type == SDL_KEYDOWN)
@@ -411,7 +496,7 @@ int main(int argc, char** argv)
                 SDL_RenderCopy(ctx.game.renderer, ctx.tilemap_texture, &tile->source_rect, &tile->dest_rect);
 
                 // Render the border if its conquered on top of the tile
-                if (tile->owner_id >= 0)
+                if (tile->owner_id >= 0 && tile->kind != TILE_FISH)
                 {
                     SDL_Color* color = &player_colors[tile->owner_id];
                     
@@ -429,7 +514,14 @@ int main(int argc, char** argv)
 
             if (tile->soldiers)
             {
+                // Visual indication that the soldier cannot be moved
+                if (tile->soldiers->remaining_moves == 0)
+                    SDL_SetTextureColorMod(ctx.soldiers_texture, 160, 160, 160);
+                else
+                    SDL_SetTextureColorMod(ctx.soldiers_texture, 255, 255, 255);
+
                 SDL_RenderCopy(ctx.game.renderer, ctx.soldiers_texture, &tile->soldiers->source_rect, &tile->dest_rect);
+
                 render_sprite(&tile->soldiers->units_label.sprite, ctx.game.renderer);
             }
         }
@@ -465,6 +557,8 @@ int main(int argc, char** argv)
         render_sprite(&ctx.player_coins.sprite, ctx.game.renderer);
         render_sprite(&ctx.player_description.sprite, ctx.game.renderer);
         render_sprite(&ctx.player_profile, ctx.game.renderer);
+
+        render_dropdown(&ctx.build_dropdown, ctx.game.renderer);
 
         SDL_RenderPresent(ctx.game.renderer);
         SDL_Delay(FRAME_DELAY);

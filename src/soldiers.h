@@ -1,7 +1,7 @@
 #ifndef _SOLDIERS_H
 #define _SOLDIERS_H
 
-#include "engine/sprite.h"
+#include "engine/interface.h"
 
 // Forward decleration
 struct tile_t;
@@ -9,6 +9,8 @@ struct tile_t;
 typedef struct soldiers_t
 {
     unsigned int units;
+    unsigned int remaining_moves;
+
     label_t units_label;
 
     // Used to determine soldiers texture

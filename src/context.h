@@ -7,6 +7,7 @@
 #include "engine/game.h"
 #include "engine/sprite.h"
 #include "engine/audio.h"
+#include "engine/interface.h"
 #include "libs/open-simplex/noise.h"
 #include "hex_utils.h"
 
@@ -16,7 +17,6 @@
 
 // Constants that should be configured by the programmer
 #define FRAMES_PER_SECOND 20
-#define MOVES_PER_TURN 5
 #define TOTAL_PLAYERS 2
 #define UNITS_PER_TRAIN 10
 #define TRAINING_COST 10
@@ -24,6 +24,11 @@
 #define FARM_COST 10
 #define FARM_INCOME 3
 #define CITY_INCOME 1
+#define FISH_INCOME 5
+#define STARTING_COINS 10
+#define COST_PER_10_UNITS 2
+#define MOVES_PER_SOLDIER 2
+#define MOVES_PER_TURN 6
 
 // For every TERRITORIES_PER_COIN captured tiles, the player receives one coin
 #define TERRITORIES_PER_COIN 10
@@ -33,8 +38,10 @@
 #define PANEL_WIDTH 220
 #define PANEL_PADDING 20
 
-#define FOREST_THRESHOLD 0.3
-#define LAND_THRESHOLD -0.3
+// Simplex noise generation variables
+#define FOREST_START 0.3
+#define LAND_START -0.3
+#define FISH_MAX -0.5
 
 // It's ok if it's a bit more than the real value
 #define TOTAL_LABELS 3 * TILEMAP_HEIGHT
@@ -84,7 +91,7 @@ typedef struct
     bool is_dead;
 
     unsigned int total_territories;
-    unsigned int coins;
+    int coins;
 } player_t;
 
 // This is all the game state, accumulated in one big struct
@@ -99,6 +106,7 @@ typedef struct
     audio_t dirt_sfx;
     audio_t military_sfx;
     animated_sprite_t explosion;
+    dropdown_t build_dropdown;
 
     SDL_Texture* tilemap_texture;
     SDL_Texture* border_texture;

@@ -62,6 +62,9 @@ soldiers_t* create_soldiers(int tile_x, int tile_y)
     // Have to do this before place_soldiers because we must first be able to initialize the text
     soldiers->current_tile = &ctx.tilemap[tile_y][tile_x];
 
+    // When soldiers are created, they need to wait for the next turn to be used
+    soldiers->remaining_moves = 0;
+
     create_label(&soldiers->units_label, ctx.font, 0);
     set_soldier_units(soldiers, UNITS_PER_TRAIN);
 
@@ -92,7 +95,7 @@ void capture_empty_neighbours(int sender_id, int tile_x, int tile_y)
 
         tile_t* tile = &ctx.tilemap[y][x];
 
-        if (!tile->soldiers && tile->kind != TILE_CITY && tile->kind != TILE_WATER && tile->kind != TILE_FARM)
+        if (!tile->soldiers && tile->kind != TILE_CITY && !is_water(x, y) && tile->kind != TILE_FARM)
         {
             capture_tile(tile, sender_id);
         }
@@ -107,7 +110,7 @@ void conquer_player(int attacker_id, int loser_id)
     {
         tile_t* tile = &ctx.tilemap[y][x];
 
-        if (tile->owner_id == loser_id && tile->kind != TILE_WATER)
+        if (tile->owner_id == loser_id && !is_water(x, y))
         {
             capture_tile(tile, attacker_id);
         }
@@ -116,15 +119,19 @@ void conquer_player(int attacker_id, int loser_id)
 
 bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 {
+    if (soldiers->remaining_moves == 0) return false;
+
     tile_t* tile = &ctx.tilemap[tile_y][tile_x];
     int sender_id = soldiers->current_tile->owner_id;
 
     // Check if the soldiers are trying to move to a sea tile without being on a port when on land
-    if (tile->kind == TILE_WATER && (soldiers->current_tile->kind != TILE_PORT && soldiers->current_tile->kind != TILE_WATER))
+    if (is_water(tile_x, tile_y) && (soldiers->current_tile->kind != TILE_PORT && soldiers->current_tile->kind != TILE_WATER))
         return false;
 
     // Stores if the soldiers go from ship to land or from land to ship so it can update the texture later (XOR operator)
-    bool will_change_surface = (tile->kind == TILE_WATER) ^ (soldiers->current_tile->kind == TILE_WATER);
+    bool will_change_surface = is_water(tile_x, tile_y) ^ (soldiers->current_tile->kind == TILE_WATER);
+
+    unsigned int new_remaining_moves = soldiers->remaining_moves - 1;
 
     if (!tile->soldiers)
     {
@@ -135,6 +142,12 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
             // Destroy enemy farm on capture
             if (tile->kind == TILE_FARM)
                 set_tile_kind(tile_x, tile_y, TILE_GRASS);
+            
+            else if (tile->kind == TILE_FISH)
+            {
+                set_tile_kind(tile_x, tile_y, TILE_WATER);
+                ctx.players[sender_id].coins += FISH_INCOME;
+            }
 
             if (tile->is_capital)
                 conquer_player(sender_id, tile->owner_id);
@@ -144,12 +157,18 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         }
 
         place_soldiers(soldiers, tile);
+        soldiers->remaining_moves = new_remaining_moves;
+
         capture_empty_neighbours(sender_id, tile_x, tile_y);
-    
 
         if (will_change_surface)
         {
-            play_audio(ctx.shipbell_sfx);
+            // Play the shipbell sound when a new ship is created
+            if (soldiers->current_tile->kind == TILE_WATER)
+            {
+                play_audio(ctx.shipbell_sfx);
+            }
+
             update_soldiers_texture(soldiers);
         }
         else
@@ -178,6 +197,8 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
             set_soldier_units(soldiers, new_units - MAX_UNITS);
         }
 
+        soldiers->remaining_moves = new_remaining_moves;
+
         return true;
     }
 
@@ -192,6 +213,7 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     else if (attack_result > 0)
     {
         set_soldier_units(tile->soldiers, attack_result);
+        tile->soldiers->remaining_moves = new_remaining_moves;
     }
     // This is a victory
     else
@@ -209,6 +231,8 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
             capture_tile(tile, sender_id);
 
         set_soldier_units(tile->soldiers, -attack_result);
+        tile->soldiers->remaining_moves = new_remaining_moves;
+
         capture_empty_neighbours(sender_id, tile_x, tile_y);
     }
 
@@ -242,7 +266,7 @@ void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
         {
             tile_t* tile = &ctx.tilemap[y][x];
 
-            if (tile->kind != TILE_WATER || can_move_to_sea)
+            if (!is_water(x, y) || can_move_to_sea)
                 ctx.highlighted_tiles[total_highlighted++] = &ctx.tilemap[y][x];
         }
     }
