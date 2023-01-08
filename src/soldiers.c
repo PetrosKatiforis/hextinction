@@ -63,6 +63,8 @@ bool try_to_train_soldiers(int tile_x, int tile_y, soldier_kind_e choice)
             else
                 set_soldier_units(tile->soldiers, tile->soldiers->units + KNIGHTS_PER_TRAIN);
 
+            current_player->total_units += KNIGHTS_PER_TRAIN;
+
             break;
     }
 
@@ -73,23 +75,42 @@ bool try_to_train_soldiers(int tile_x, int tile_y, soldier_kind_e choice)
 }
 
 // Captures tile and adjusts total territories
-void capture_tile(tile_t* dest, int sender_id)
+void capture_tile(int tile_x, int tile_y, int sender_id)
 {
-    ctx.players[sender_id].total_territories++;
-    bool was_neutral = dest->owner_id < 0;
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
 
-    if (dest->kind == TILE_CITY)
-    {
-        ctx.players[sender_id].total_cities++;
-        
-        if (!was_neutral)
-            ctx.players[dest->owner_id].total_cities--;
-    }
+    ctx.players[sender_id].total_territories++;
+    bool was_neutral = tile->owner_id < 0;
 
     if (!was_neutral)
-        ctx.players[dest->owner_id].total_territories--; 
+        ctx.players[tile->owner_id].total_territories--; 
 
-    dest->owner_id = sender_id;
+    // Handle some special cases
+    switch (tile->kind)
+    {
+        case TILE_FARM:
+        case TILE_BROKEN_FARM:
+            // I don't need to check if it's owned, but just in case
+            if (!was_neutral) ctx.players[tile->owner_id].total_farms--;
+        
+            set_tile_kind(tile_x, tile_y, TILE_GRASS);
+
+            break;
+
+        case TILE_FISH:
+            set_tile_kind(tile_x, tile_y, TILE_WATER);
+            ctx.players[sender_id].coins += FISH_INCOME;
+            
+            break;
+
+        case TILE_CITY:
+            if (!was_neutral) ctx.players[tile->owner_id].total_cities--;
+            ctx.players[sender_id].total_cities++;
+            
+            break;
+    }
+
+    tile->owner_id = sender_id;
 }
 
 soldiers_t* create_soldiers(int tile_x, int tile_y, soldier_kind_e kind)
@@ -142,7 +163,7 @@ void capture_empty_neighbours(int sender_id, int tile_x, int tile_y)
 
         if (!tile->soldiers && tile->kind != TILE_CITY && !is_water(x, y) && tile->kind != TILE_FARM)
         {
-            capture_tile(tile, sender_id);
+            capture_tile(x, y, sender_id);
         }
     }
 }
@@ -157,7 +178,7 @@ void conquer_player(int attacker_id, int loser_id)
 
         if (tile->owner_id == loser_id && !is_water(x, y))
         {
-            capture_tile(tile, attacker_id);
+            capture_tile(x, y, attacker_id);
         }
     }
 }
@@ -184,31 +205,14 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     {
         if (enemy_id != sender_id)
         {
-            // Destroy enemy farm on capture
-            if (tile->kind == TILE_FARM)
-            {
-                ctx.players[enemy_id].total_farms--;
-                set_tile_kind(tile_x, tile_y, TILE_GRASS);
-            }
-            
-            else if (tile->kind == TILE_FISH)
-            {
-                set_tile_kind(tile_x, tile_y, TILE_WATER);
-                ctx.players[sender_id].coins += FISH_INCOME;
-            }
-
             // Saboteurs can only claim empty land and farms
-            if (soldiers->kind == SOLDIER_SABOTEUR)
-            {
-                if (tile->kind == TILE_CITY) return false;
+            if (soldiers->kind == SOLDIER_SABOTEUR && tile->kind == TILE_CITY) return false;
+            
 
-                capture_tile(tile, sender_id);
-            }
-            else if (tile->is_capital)
+            if (tile->is_capital)
                 conquer_player(sender_id, tile->owner_id);
-
             else
-                capture_tile(tile, sender_id);
+                capture_tile(tile_x, tile_y, sender_id);
         }
 
         soldiers->current_tile->soldiers = NULL;
@@ -278,9 +282,6 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
     // This is a victory
     else
     {    
-        if (tile->kind == TILE_FARM)
-            set_tile_kind(tile_x, tile_y, TILE_GRASS);
-
         // Conquering a capital should kill the player and make his kingdom part of the attacker's
         if (tile->is_capital)
         {
@@ -288,7 +289,7 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
             conquer_player(sender_id, enemy_id);
         }
         else
-            capture_tile(tile, sender_id);
+            capture_tile(tile_x, tile_y, sender_id);
 
         // If the enemy was a saboteur, make turn him into a knight
         if (tile->soldiers->kind == SOLDIER_SABOTEUR)

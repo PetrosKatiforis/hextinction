@@ -50,7 +50,7 @@ void select_soldiers(soldiers_t* soldiers, int tile_x, int tile_y);
 void render_soldiers(soldiers_t* soldiers, SDL_Renderer* renderer, SDL_Texture* soldiers_texture);
 
 // Sets the tile owner to sender_id and adjusts total territories
-void capture_tile(struct tile_t* tile, int sender_id);
+void capture_tile(int tile_x, int tile_y, int sender_id);
 
 void clear_selected_soldiers();
 void destroy_soldiers(soldiers_t* soldiers);

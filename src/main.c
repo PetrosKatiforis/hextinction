@@ -51,10 +51,12 @@ void create_interface()
     ctx.panel_rect = (SDL_Rect) {TOTAL_TILEMAP_WIDTH, 0, PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT};
 
     // Creating the dropdowns
-    char farm_text[30];
+    char farm_text[30], fix_farm_text[30];
     sprintf(farm_text, "Build Farm (%d Coins)", FARM_COST);
+    sprintf(fix_farm_text, "Fix Farm (%d Coins)", FIX_FARM_COST);
 
     create_dropdown(&ctx.build_dropdown, ctx.game.renderer, ctx.font, 1, farm_text);
+    create_dropdown(&ctx.fix_farm_dropdown, ctx.game.renderer, ctx.font, 1, fix_farm_text);
 
     char knight_text[40], saboteur_text[40];
     sprintf(knight_text, "Train Knight (%d Coins)", SOLDIER_COSTS[SOLDIER_KNIGHT]);
@@ -115,9 +117,9 @@ void create_tilemap()
         }
         else if (value > LAND_START && bottom < LAND_START)
         {
-            create_tile(x, y, chance_one_in(10) ? TILE_PORT : TILE_COAST);
+            create_tile(x, y, chance_one_in(8) ? TILE_PORT : TILE_COAST);
         }
-        else if (value > LAND_START && top < LAND_START && chance_one_in(10))
+        else if (value > LAND_START && top < LAND_START && chance_one_in(8))
         {
             create_tile(x, y, TILE_PORT);
         }
@@ -155,7 +157,7 @@ void create_tilemap()
         if (is_water(tile_x, tile_y))
             place_grass(tile_x, tile_y);
 
-        capture_tile(capital, player_id);
+        capture_tile(tile_x, tile_y, player_id);
         create_city(tile_x, tile_y);
 
         capital->is_capital = true;
@@ -183,7 +185,7 @@ void create_tilemap()
                     set_tile_kind(x, y, TILE_COAST);
             }
 
-            capture_tile(neighbour, player_id);
+            capture_tile(x, y, player_id);
         }
 
         // Generating a port at the bottom and at the top tile if the player needs a way to exit his isolated island 
@@ -202,12 +204,36 @@ void next_turn()
     player_t* old_player = &ctx.players[ctx.current_player_id];
     old_player->coins += old_player->income;
 
+    // Checking if the old player is the richest
+    bool was_richest = true;
+
+    for (int i = 0; i < ctx.starting_players; i++)
+    {
+        if (ctx.players[i].income > old_player->income)
+        {
+            was_richest = false;
+            break;
+        }
+    }
+
     // Resetting soldier moves
     MAP_FOREACH(x, y)
     {
         tile_t* tile = &ctx.tilemap[y][x];
+        if (tile->owner_id != ctx.current_player_id) continue;
 
-        if (tile->soldiers && tile->owner_id == ctx.current_player_id)
+        // Make it probable that the richest player's farms get broken, so that the game becomes more balanced
+        if (tile->kind == TILE_FARM && was_richest && old_player->income > 20 && chance_one_in(15))
+        {
+            set_tile_kind(x, y, TILE_BROKEN_FARM);
+        }
+        else if (tile->kind == TILE_BROKEN_FARM)
+        {
+            old_player->total_farms--;
+            set_tile_kind(x, y, TILE_GRASS);
+        }
+
+        if (tile->soldiers)
             tile->soldiers->remaining_moves = SOLDIER_MOVES[tile->soldiers->kind];
     }
 
@@ -318,12 +344,12 @@ void handle_click(int tile_x, int tile_y)
 
         window_to_tile_position(&source_x, &source_y, source_tile->dest_rect.x, source_tile->dest_rect.y);
         
-        /*if (!is_neighbouring_tile(source_x, source_y, tile_x, tile_y))
+        if (!is_neighbouring_tile(source_x, source_y, tile_x, tile_y))
         {
             clear_selected_soldiers();
             
             return;
-        }*/
+        }
 
         if (move_soldiers(ctx.selected_soldiers, tile_x, tile_y))
         {
@@ -357,6 +383,23 @@ void handle_build(int tile_x, int tile_y, int choice)
             }
 
             break;
+    }
+}
+
+void handle_farm_fix(int tile_x, int tile_y, int choice)
+{
+    tile_t* tile = &ctx.tilemap[tile_y][tile_x];
+    if (tile->owner_id != ctx.current_player_id) return;
+    
+    player_t* current_player = &ctx.players[ctx.current_player_id];
+
+    if (current_player->coins >= FIX_FARM_COST)
+    {
+        current_player->coins -= FIX_FARM_COST;
+
+        set_tile_kind(tile_x, tile_y, TILE_FARM);
+        decrement_move();
+        update_stats();
     }
 }
 
@@ -468,6 +511,7 @@ int main(int argc, char** argv)
                 {
                     process_hex_dropdown(&ctx.build_dropdown, handle_build);
                     process_hex_dropdown(&ctx.train_dropdown, handle_train);
+                    process_hex_dropdown(&ctx.fix_farm_dropdown, handle_farm_fix);
 
                     handle_click(tile_x, tile_y);
                 }
@@ -479,6 +523,9 @@ int main(int argc, char** argv)
                     
                     else if (tile->kind == TILE_GRASS)
                         activate_dropdown_at(&ctx.game, &ctx.build_dropdown, event.button.x, event.button.y);
+
+                    else if (tile->kind == TILE_BROKEN_FARM)
+                        activate_dropdown_at(&ctx.game, &ctx.fix_farm_dropdown, event.button.x, event.button.y);
                 }
             }
 

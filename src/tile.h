@@ -15,6 +15,7 @@ typedef enum
     TILE_CITY,
     TILE_PORT,
     TILE_FARM,
+    TILE_BROKEN_FARM,
     TILE_FISH,
     TILE_WATER,
 } tile_kind_e;

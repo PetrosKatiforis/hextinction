@@ -18,7 +18,6 @@
 // Constants that should be configured by the programmer
 #define KNIGHTS_PER_TRAIN 10
 #define MAX_UNITS 100
-#define FARM_COST 40
 #define FARM_INCOME 4
 #define CITY_INCOME 1
 #define FISH_INCOME 5
@@ -29,6 +28,8 @@
 
 // How much will units cost per turn
 #define COST_PER_10_UNITS 4
+#define FARM_COST 40
+#define FIX_FARM_COST 5
 
 // For every TERRITORIES_PER_COIN captured tiles, the player receives one coin
 #define TERRITORIES_PER_COIN 25
@@ -111,8 +112,11 @@ typedef struct
     audio_t dirt_sfx;
     audio_t military_sfx;
     animated_sprite_t explosion;
+
+    // Dropdown's with a single option are still a nice fit because they provide info and double-checking
     dropdown_t build_dropdown;
     dropdown_t train_dropdown;
+    dropdown_t fix_farm_dropdown;
 
     SDL_Texture* tilemap_texture;
     SDL_Texture* border_texture;
