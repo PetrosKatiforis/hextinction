@@ -8,7 +8,7 @@
 #include "engine/sprite.h"
 #include "engine/audio.h"
 #include "engine/interface.h"
-#include "libs/open-simplex/noise.h"
+#include "libs/noise/open-simplex.h"
 #include "hex_utils.h"
 
 #define TILE_WIDTH 34
@@ -24,6 +24,8 @@
 #define FISH_INCOME 5
 #define STARTING_COINS 1000
 #define MOVES_PER_TURN 6
+#define CITY_PREVIEW_OFFSET_X 1
+#define CITY_PREVIEW_OFFSET_Y 2
 
 // How much will units cost per turn
 #define COST_PER_10_UNITS 4
@@ -123,6 +125,8 @@ typedef struct
 
     // player capitals + cities
     label_t city_labels[TOTAL_LABELS];
+    bool is_label_active[TOTAL_LABELS];
+
     unsigned int total_cities;
 
     // properties needed for turn-based gameplay

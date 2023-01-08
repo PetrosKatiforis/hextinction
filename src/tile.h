@@ -28,8 +28,8 @@ typedef struct tile_t
     tile_kind_e kind;
     bool is_capital;
 
-    // Index of city_names, left -1 if the tile is not a city
-    int city_index;
+    // Index of city label in ctx.city_labels
+    int label_index;
     
     // Again, left to -1 if unclaimed
     int owner_id;

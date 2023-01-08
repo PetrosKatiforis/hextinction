@@ -6,7 +6,7 @@
 #include "context.h"
 #include "hex_utils.h"
 #include "engine/utils.h"
-#include "libs/open-simplex/noise.h"
+#include "libs/noise/open-simplex.h"
 
 // Places grass at the specified position and removes visual glitches
 void place_grass(int tile_x, int tile_y)
@@ -482,6 +482,27 @@ int main(int argc, char** argv)
                 }
             }
 
+            else if (event.type == SDL_MOUSEMOTION)
+            {
+                memset(ctx.is_label_active, 0, TOTAL_LABELS);
+
+                int tile_x, tile_y;
+                
+                // We don't care if the hovered tile does not exist
+                window_to_tile_position(&tile_x, &tile_y, event.motion.x, event.motion.y);
+
+                for (int y = -CITY_PREVIEW_OFFSET_Y; y < CITY_PREVIEW_OFFSET_Y; y++)
+                {
+                    for (int x = -CITY_PREVIEW_OFFSET_X; x < CITY_PREVIEW_OFFSET_X; x++)
+                    {
+                        tile_t* tile = &ctx.tilemap[tile_y + y][tile_x + x];
+
+                        if (is_valid_tile(tile_x + x, tile_y + y) && tile->kind == TILE_CITY)
+                            ctx.is_label_active[tile->label_index] = true;
+                    }
+                }
+            }
+
             else if (event.type == SDL_KEYDOWN)
             {
                 switch (event.key.keysym.sym)
@@ -543,8 +564,11 @@ int main(int argc, char** argv)
         }
 
         // Rendering city labels
-        for (int i = 0; i < ctx.starting_players; i++)
-            render_sprite(&ctx.city_labels[i].sprite, ctx.game.renderer);
+        for (int i = 0; i < TOTAL_LABELS; i++)
+        {
+            if (ctx.is_label_active[i])
+                render_sprite(&ctx.city_labels[i].sprite, ctx.game.renderer);
+        }
 
         if (ctx.explosion.is_active)
             render_animated_sprite(&ctx.explosion, ctx.game.renderer);

@@ -1,5 +1,5 @@
 # Variables set by the programmer
-SOURCE_DIRS = src src/engine src/libs/open-simplex
+SOURCE_DIRS = src src/engine src/libs/noise
 PKG_CONFIG_FLAGS = $(shell pkg-config --cflags --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf) -lm
 EXE_NAME = hextiction 
 

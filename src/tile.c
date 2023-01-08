@@ -13,7 +13,6 @@ void create_tile(int tile_x, int tile_y, tile_kind_e kind)
     set_tile_kind(tile_x, tile_y, kind);
     assign_tile_position(tile_x, tile_y);
 
-    tile->city_index = -1;
     tile->owner_id = -1;
 }
 
@@ -32,8 +31,6 @@ void create_city(int tile_x, int tile_y)
 {
     tile_t* tile = &ctx.tilemap[tile_y][tile_x];
 
-    // Picking a random name
-    tile->city_index = rand() % (sizeof(city_names) / CITY_NAME_LEN);
     set_tile_kind(tile_x, tile_y, TILE_CITY);
             
     // Creates the text label, loops through the pool instead of a dynamic array because it's small
@@ -45,8 +42,14 @@ void create_city(int tile_x, int tile_y)
         if (label->sprite.texture != NULL) continue;
 
         create_label(label, ctx.font, 0);
-        set_label_content(label, ctx.game.renderer, city_names[tile->city_index]);
-        set_transform_position(&label->sprite.transform, tile->dest_rect.x + 40, tile->dest_rect.y + 4);
+        set_label_content(label, ctx.game.renderer, city_names[rand() % (sizeof(city_names) / CITY_NAME_LEN)]);
+
+        // Labels at the top right should be left-aligned
+        int x = tile->dest_rect.x + (tile_x > TILEMAP_WIDTH - 3 ? -label->sprite.transform.rect.w : 40);
+
+        set_transform_position(&label->sprite.transform, x, tile->dest_rect.y + 4);
+
+        tile->label_index = i;
 
         break;
     }
