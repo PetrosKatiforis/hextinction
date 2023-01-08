@@ -51,7 +51,7 @@ void create_interface()
     ctx.panel_rect = (SDL_Rect) {TOTAL_TILEMAP_WIDTH, 0, PANEL_WIDTH, TOTAL_TILEMAP_HEIGHT};
 
     // Creating the dropdowns
-    char farm_text[20];
+    char farm_text[30];
     sprintf(farm_text, "Build Farm (%d Coins)", FARM_COST);
 
     create_dropdown(&ctx.build_dropdown, ctx.game.renderer, ctx.font, 1, farm_text);
@@ -144,7 +144,7 @@ void create_tilemap()
     }
 
     // Generating the capitals at the four map edges (if no land is there, it will be generated with a port too)
-    for (int player_id = 0; player_id < TOTAL_PLAYERS; player_id++)
+    for (int player_id = 0; player_id < ctx.starting_players; player_id++)
     {
         int tile_x = capital_positions[player_id][0];
         int tile_y = capital_positions[player_id][1];
@@ -213,11 +213,12 @@ void next_turn()
 
     // Going to the next player
     ctx.current_player_id++;
+    ctx.selected_soldiers = NULL;
     ctx.remaining_moves = MOVES_PER_TURN;
 
     update_moves_label();
 
-    if (ctx.current_player_id > TOTAL_PLAYERS - 1)
+    if (ctx.current_player_id > ctx.starting_players - 1)
         ctx.current_player_id = 0;
 
     // Skip if the player is dead
@@ -403,13 +404,42 @@ void initialize_context()
     next_turn();
 }
 
+void display_help_and_exit()
+{
+    printf(
+        "Instructions on how to run Hextinction and what arguments it expects:\n"
+        "   ./hextiction [1-4 int, total_players] [optional int, map_seed]\n\n"
+        "   NOTES:       if no seed is passed, it will pick one randomly\n"
+    );
+
+    exit(EXIT_FAILURE);
+}
+
+void parse_console_arguments(int argc, char** argv)
+{
+    // Remember that the first argument is the actual file name
+    if (argc < 2)
+    {
+        display_help_and_exit();
+    }
+
+    // Initializing some context state according to the passed arguments
+    int number_of_players = atoi(argv[1]);
+
+    if (number_of_players < 1 || number_of_players > TOTAL_PLAYERS)
+    {
+        display_help_and_exit();
+    }
+
+    ctx.starting_players = number_of_players;
+    open_simplex_noise(argc > 2 ? atoi(argv[2]) : rand(), &ctx.noise_context);
+}
+
 int main(int argc, char** argv)
 {
     srand(time(NULL));
     
-    // Initializing noise with seed coming from the arguments or a randomly generated one
-    open_simplex_noise(argc > 1 ? atoi(argv[1]) : rand(), &ctx.noise_context);
-
+    parse_console_arguments(argc, argv);
     initialize_context();
 
     // Collecting events and defining the game loop
@@ -513,7 +543,7 @@ int main(int argc, char** argv)
         }
 
         // Rendering city labels
-        for (int i = 0; i < TOTAL_PLAYERS; i++)
+        for (int i = 0; i < ctx.starting_players; i++)
             render_sprite(&ctx.city_labels[i].sprite, ctx.game.renderer);
 
         if (ctx.explosion.is_active)

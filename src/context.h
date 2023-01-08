@@ -13,9 +13,9 @@
 
 #define TILE_WIDTH 34
 #define TILE_HEIGHT 32
+#define TOTAL_PLAYERS 4
 
 // Constants that should be configured by the programmer
-#define TOTAL_PLAYERS 2
 #define KNIGHTS_PER_TRAIN 10
 #define MAX_UNITS 100
 #define FARM_COST 40
@@ -59,26 +59,26 @@ static char city_names[][CITY_NAME_LEN] = {
 static SDL_Color player_colors[TOTAL_PLAYERS] = {
     {0, 0, 255, 70},
     {0, 255, 0, 70},
-    //{255, 0, 0, 50},
-    //{255, 0, 255, 50},
+    {255, 0, 0, 50},
+    {255, 0, 255, 50},
 };
 
 static char player_names[TOTAL_PLAYERS][30] = {
-    "Blunited Kingdom", "Greenborg", //"Redulke", "Purplevania",
+    "Blunited Kingdom", "Greenborg", "Redulke", "Purplevania",
 };
 
 static char player_descriptions[TOTAL_PLAYERS][200] = {
     "A powerful kingdom located at the top west. They are ruled by a young monarch whose expertise are naval battles",
     "A rather hostile barbaric society of gigantic orcs. Their army mostly consists of hostage humans",
-    //"A fearless empire located on the far east. They passionately want to make themselves stand out from the Arabs",
-    //"A mysterious witch town that started explanding with the intension of imporving their living conditions."
+    "A fearless empire located on the far east. They passionately want to make themselves stand out from the Arabs",
+    "A mysterious witch town that started explanding with the intension of imporving their living conditions."
 };
 
 static int capital_positions[TOTAL_PLAYERS][2] = {
     {0, 3},
     {TILEMAP_WIDTH - 1, TILEMAP_HEIGHT - 4},
-    //{TILEMAP_WIDTH - 1, 2},
-    //{0, TILEMAP_HEIGHT - 3},
+    {TILEMAP_WIDTH - 1, 2},
+    {0, TILEMAP_HEIGHT - 3},
 };
 
 // Using the formula of hex_utils.c, these are in pixels
@@ -129,6 +129,9 @@ typedef struct
     player_t players[TOTAL_PLAYERS];
     int current_player_id;
     int remaining_moves;
+    
+    // The amount of players the game starts with
+    int starting_players;
 
     sprite_t turn_arrow;
 
