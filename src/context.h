@@ -20,15 +20,15 @@
 #define MAX_UNITS 100
 #define FARM_INCOME 4
 #define CITY_INCOME 1
-#define FISH_INCOME 5
-#define STARTING_COINS 1000
+#define FISH_INCOME 10
+#define STARTING_COINS 20
 #define MOVES_PER_TURN 6
 #define CITY_PREVIEW_OFFSET_X 1
 #define CITY_PREVIEW_OFFSET_Y 2
 
 // How much will units cost per turn
-#define COST_PER_10_UNITS 4
-#define FARM_COST 40
+#define COST_PER_10_UNITS 2
+#define FARM_COST 35
 #define FIX_FARM_COST 5
 
 // For every TERRITORIES_PER_COIN captured tiles, the player receives one coin
