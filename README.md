@@ -1,6 +1,6 @@
 ## Hextinction Source Code
 
-Hextinction is a local multiplayer turn-based hex-tiled pixel art strategy game where you are the ruler of a kingdom. The gameplay is a bit complex so here's a simple explanation of how to play:
+Hextinction is a local multiplayer turn-based hex-tiled pixel art strategy game where you play as the ruler of a kingdom. The gameplay is a bit complex so here's a simple explanation of how to play:
 
 ![Game Banner](/extra_images/banner.png?raw=true)
 
