@@ -3,7 +3,6 @@ define collect_sources
 	$(shell find $(1) -name '*.c')
 endef
 
-# Variables set by the programmer
 SOURCES = $(call collect_sources, src)
 OBJECTS = $(patsubst %.c, objects/%.o, $(SOURCES))
 
