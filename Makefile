@@ -1,25 +1,28 @@
+# Returns all c files nested or not in $(1)
+define collect_sources
+	$(shell find $(1) -name '*.c')
+endef
+
 # Variables set by the programmer
-SOURCE_DIRS = src src/engine src/libs/noise
-PKG_CONFIG_FLAGS = $(shell pkg-config --cflags --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf) -lm
-EXE_NAME = hextinction 
+SOURCES = $(call collect_sources, src)
+OBJECTS = $(patsubst %.c, objects/%.o, $(SOURCES))
 
-SOURCES = $(foreach sdir, $(SOURCE_DIRS), $(wildcard $(sdir)/*.c))
-OBJECTS = $(patsubst src/%.c, objects/%.o, $(SOURCES))
+C_FLAGS = `pkg-config --cflags sdl2 SDL2_image SDL2_mixer SDL2_ttf`
+LD_FLAGS = `pkg-config --libs sdl2 SDL2_image SDL2_mixer SDL2_ttf` -lm
 
-all: prepare $(EXE_NAME) run
+all: hextinction
 
-$(EXE_NAME): $(OBJECTS)
-	@gcc $^ -o $@ $(PKG_CONFIG_FLAGS)
-	@echo "The project was build successfully!"
+hextinction: $(OBJECTS)
+	@echo "[Makefile] Creating the executable"
+	@$(CC) $^ -o $@ $(LD_FLAGS)
 
-objects/%.o: src/%.c
-	@echo "Building $@"
-	@gcc -c $^ -o $@ $(PKG_CONFIG_FLAGS)
-	
-prepare:
-	@# Creating the necessary directories inside the objects folder
-	@mkdir -p $(patsubst src/%, objects/%, $(SOURCE_DIRS))
+	@# Running the executable once the building is done with 2 players
+	@./$@ 2
 
-run:
-	@# Run the project once it's done building
-	@./$(EXE_NAME) 2
+objects/%.o: %.c
+	@# Making sure that the directory already exists before creating the object
+	@mkdir -p $(dir $@)
+
+	@echo "[Makefile] Building $@"
+	@$(CC) $(C_FLAGS) -c $< -o $@
+
