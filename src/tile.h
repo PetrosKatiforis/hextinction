@@ -1,7 +1,7 @@
 #ifndef _TILE_H
 #define _TILE_H
 
-#include <SDL.h>
+#include <SDL2/SDL.h>
 
 // Forward decleration
 struct soldiers_t;

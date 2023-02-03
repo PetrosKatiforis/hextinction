@@ -1,7 +1,7 @@
 #ifndef _AUDIO_H
 #define _AUDIO_H
 
-#include <SDL_mixer.h>
+#include <SDL2/SDL_mixer.h>
 
 // This is just for consistency, although really pointless and confusing
 typedef Mix_Chunk* audio_t;

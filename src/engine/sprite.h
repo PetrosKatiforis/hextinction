@@ -1,8 +1,8 @@
 #ifndef _SPRITE_H
 #define _SPRITE_H
 
-#include <SDL.h>
-#include <SDL_ttf.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include "custom_math.h"
 #include "timers.h"
 

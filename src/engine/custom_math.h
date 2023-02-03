@@ -2,7 +2,7 @@
 #define _MY_MATH_H
 
 #include <stdbool.h>
-#include <SDL.h>
+#include <SDL2/SDL.h>
 
 // A vector2f structure with some special methods that will be used throught most games
 typedef struct

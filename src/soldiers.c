@@ -269,7 +269,9 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 
     // Handling battles
     bool is_saboteur_involved = soldiers->kind == SOLDIER_SABOTEUR || tile->soldiers->kind == SOLDIER_SABOTEUR;
+
     int attack_result = tile->soldiers->units - soldiers->units;
+    int total_killed = MIN(tile->soldiers->units, soldiers->units);
 
     destroy_soldiers(soldiers);
         
@@ -308,8 +310,8 @@ bool move_soldiers(soldiers_t* soldiers, int tile_x, int tile_y)
 
     if (!is_saboteur_involved)
     {
-        ctx.players[sender_id].total_units -= attack_result;
-        ctx.players[enemy_id].total_units += attack_result;
+        ctx.players[sender_id].total_units -= total_killed;
+        ctx.players[enemy_id].total_units -= total_killed;
     }
 
     activate_explosion(tile->dest_rect.x, tile->dest_rect.y);

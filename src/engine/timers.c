@@ -1,5 +1,5 @@
 #include "timers.h"
-#include <SDL.h>
+#include <SDL2/SDL.h>
 
 // Just update's the timer's starting_time nothing fancy
 void start_timer(simple_timer_t* timer)

@@ -3,8 +3,8 @@
 // Initializing the global variable
 context_t ctx;
 
-#include <SDL.h>
-#include <SDL_image.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 
 // These functions are some utilities that can only be defined with the context in mind
 // They are usually brief versions of other functionality
